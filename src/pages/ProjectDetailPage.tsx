@@ -1,9 +1,8 @@
-import { Box, Chip, Grid, Stack, Typography } from '@mui/material';
+import { Box, Grid, Stack, Typography } from '@mui/material';
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { fetchProject } from '@/api/projects';
-import { fetchProjects } from '@/api/projects';
+import { fetchProject, fetchProjectDevelopers, fetchProjectTopics } from '@/api/projects';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorPanel from '@/components/ui/ErrorPanel';
 import MetricCard from '@/components/ui/MetricCard';
@@ -11,8 +10,10 @@ import SectionCard from '@/components/ui/SectionCard';
 import FilterBar from '@/components/ui/Filters/FilterBar';
 import ComparisonTable from '@/components/ui/ComparisonTable';
 import ChartCard from '@/components/ui/ChartCard';
+import RelationshipGraph from '@/components/ui/RelationshipGraph';
 import { ProjectDetailResponse } from '@/types/projects';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { buildProjectRelationshipGraph } from '@/utils/relationshipGraph';
 
 const ProjectDetailPage: React.FC = () => {
   const { project } = useParams<{ project: string }>();
@@ -28,24 +29,59 @@ const ProjectDetailPage: React.FC = () => {
     queryKey: ['project-detail', projectName, selectedDevelopers, selectedTopics, startDate, endDate, live],
     queryFn: async () => {
       if (!projectName) return undefined;
-      return fetchProject(projectName, {
-        username: selectedDevelopers,
-        topic: selectedTopics,
-        start_date: startDate || undefined,
-        end_date: endDate || undefined,
-        live,
-      });
+
+      const params: Record<string, unknown> = {};
+      if (selectedDevelopers.length > 0) {
+        params.username = selectedDevelopers;
+      }
+      if (selectedTopics.length > 0) {
+        params.topic = selectedTopics;
+      }
+      if (startDate) {
+        params.start_date = startDate;
+      }
+      if (endDate) {
+        params.end_date = endDate;
+      }
+      params.live = live;
+
+      return fetchProject(projectName, params);
     },
     enabled: Boolean(projectName),
   });
 
-  const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
+  const developersQuery = useQuery<string[]>({
+    queryKey: ['project-developers', projectName],
+    queryFn: async () => {
+      if (!projectName) {
+        return [];
+      }
+      return fetchProjectDevelopers(projectName);
+    },
+    enabled: Boolean(projectName),
+  });
 
-  const developerOptions = useMemo(() => detailQuery.data ? Object.keys(detailQuery.data.developers) : [], [detailQuery.data]);
-  const repositoryOptions: string[] = [projectName];
-  const topicOptions: string[] = [];
+  const topicsQuery = useQuery<string[]>({
+    queryKey: ['project-topics', projectName, selectedDevelopers],
+    queryFn: async () => {
+      if (!projectName || selectedDevelopers.length === 0) {
+        return [];
+      }
+      return fetchProjectTopics(projectName, selectedDevelopers);
+    },
+    enabled: Boolean(projectName) && selectedDevelopers.length > 0,
+  });
 
-  if (detailQuery.isLoading || projectsQuery.isLoading) {
+  const developerOptions = developersQuery.data ?? [];
+  const topicOptions = topicsQuery.data ?? [];
+  const relationshipGraph = useMemo(() => {
+    if (!detailQuery.data) {
+      return { nodes: [], edges: [] };
+    }
+    return buildProjectRelationshipGraph(detailQuery.data);
+  }, [detailQuery.data]);
+
+  if (detailQuery.isLoading || developersQuery.isLoading) {
     return <LoadingSpinner />;
   }
 
@@ -81,15 +117,23 @@ const ProjectDetailPage: React.FC = () => {
 
         <FilterBar
           developerOptions={developerOptions}
-          repositoryOptions={repositoryOptions}
+          repositoryOptions={[projectName]}
           topicOptions={topicOptions}
-          selectedDeveloper={selectedDevelopers[0] ?? null}
+          selectedDeveloper={selectedDevelopers}
           selectedRepositories={[]}
           selectedTopics={selectedTopics}
           startDate={startDate}
           endDate={endDate}
           live={live}
-          onDeveloperChange={() => undefined}
+          showRepositorySelector={false}
+          showTopicSelector
+          topicDisabled={selectedDevelopers.length === 0}
+          developerMultiple
+          onDeveloperChange={(value) => {
+            const nextDevelopers = Array.isArray(value) ? value : value ? [value] : [];
+            setSelectedDevelopers(nextDevelopers);
+            setSelectedTopics([]);
+          }}
           onRepositoryChange={() => undefined}
           onTopicChange={setSelectedTopics}
           onStartDateChange={setStartDate}
@@ -99,15 +143,24 @@ const ProjectDetailPage: React.FC = () => {
 
         <Grid container spacing={3}>
           <Grid item xs={12} md={4}>
-            <MetricCard title="Developers" value={developerRows.length} />
+            <MetricCard title="Developers returned" value={developerRows.length} />
           </Grid>
           <Grid item xs={12} md={4}>
-            <MetricCard title="Total project developers" value={developerRows.length} />
+            <MetricCard title="Active developers" value={data.filters.developers?.length ?? developerRows.length} />
           </Grid>
           <Grid item xs={12} md={4}>
             <MetricCard title="Live mode" value={live ? 'Enabled' : 'Disabled'} />
           </Grid>
         </Grid>
+
+        <SectionCard title="Developer collaboration graph">
+          <RelationshipGraph
+            title="Project collaboration network"
+            subtitle="Each node is a developer in this project; edge thickness reflects combined review and comment interactions."
+            nodes={relationshipGraph.nodes}
+            edges={relationshipGraph.edges}
+          />
+        </SectionCard>
 
         <SectionCard title="Developer comparison">
           <ComparisonTable

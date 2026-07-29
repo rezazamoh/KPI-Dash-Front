@@ -19,3 +19,38 @@ export const fetchProject = async (
   });
   return response.data;
 };
+
+export const fetchProjectDevelopers = async (project: string): Promise<string[]> => {
+  const response = await api.get(`/projects/${encodeURIComponent(project)}/developers`);
+  const data = response.data;
+
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data?.developers)) {
+    return data.developers;
+  }
+
+  return [];
+};
+
+export const fetchProjectTopics = async (
+  project: string,
+  developers: string[]
+): Promise<string[]> => {
+  const response = await api.get(`/projects/${encodeURIComponent(project)}/topics`, {
+    params: { username: developers },
+  });
+
+  const data = response.data;
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data?.topics)) {
+    return data.topics;
+  }
+
+  return [];
+};

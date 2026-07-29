@@ -19,3 +19,23 @@ export const fetchDeveloper = async (
   });
   return response.data;
 };
+
+export const fetchDeveloperTopics = async (
+  username: string,
+  repos: string[]
+): Promise<string[]> => {
+  const response = await api.get(`/developers/${encodeURIComponent(username)}/topics`, {
+    params: { repo: repos },
+  });
+
+  const data = response.data;
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data?.topics)) {
+    return data.topics;
+  }
+
+  return [];
+};
