@@ -37,6 +37,7 @@ export interface PeopleStats {
 
 export interface DeveloperSnapshotMetrics {
   change_count: number;
+  projects: Array<{ project: string; changes: number }>;
   changes_by_status_per_repo: Record<string, Record<string, number>>;
   average_patchsets: number;
   review_requests_received: PeopleStats;

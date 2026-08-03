@@ -11,6 +11,8 @@ const RepositorySelector: React.FC<RepositorySelectorProps> = ({ repositories, v
     multiple
     value={value}
     options={repositories}
+    disableCloseOnSelect
+    filterSelectedOptions={false}
     onChange={(_, nextValue) => onChange(nextValue)}
     renderInput={(params) => <TextField {...params} label="Repositories" size="small" />}
     sx={{ minWidth: 240, maxWidth: 420 }}

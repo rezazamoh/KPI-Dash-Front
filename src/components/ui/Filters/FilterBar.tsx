@@ -1,4 +1,4 @@
-import { Box, FormControlLabel, Switch, Stack } from '@mui/material';
+import { Button, FormControlLabel, Stack, Switch } from '@mui/material';
 import DateRangePicker from './DateRangePicker';
 import RepositorySelector from './RepositorySelector';
 import TopicSelector from './TopicSelector';
@@ -14,12 +14,22 @@ interface FilterBarProps {
   startDate: string;
   endDate: string;
   live: boolean;
+  topicDisabled?: boolean;
+  draftDeveloper: string | null;
+  draftRepositories: string[];
+  draftTopics: string[];
+  draftStartDate: string;
+  draftEndDate: string;
+  draftLive: boolean;
   onDeveloperChange: (value: string | null) => void;
   onRepositoryChange: (value: string[]) => void;
   onTopicChange: (value: string[]) => void;
   onStartDateChange: (value: string) => void;
   onEndDateChange: (value: string) => void;
   onLiveChange: (value: boolean) => void;
+  onApplyFilters: () => void;
+  onResetFilters: () => void;
+  onTopicMenuOpenChange: (open: boolean) => void;
 }
 
 const FilterBar: React.FC<FilterBarProps> = ({
@@ -32,26 +42,50 @@ const FilterBar: React.FC<FilterBarProps> = ({
   startDate,
   endDate,
   live,
+  topicDisabled = false,
+  draftDeveloper,
+  draftRepositories,
+  draftTopics,
+  draftStartDate,
+  draftEndDate,
+  draftLive,
   onDeveloperChange,
   onRepositoryChange,
   onTopicChange,
   onStartDateChange,
   onEndDateChange,
   onLiveChange,
+  onApplyFilters,
+  onResetFilters,
+  onTopicMenuOpenChange,
 }) => (
   <Stack spacing={3} sx={{ mb: 4 }}>
-    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} flexWrap="wrap" justifyContent="space-between">
-      <DeveloperSelector developers={developerOptions} value={selectedDeveloper} onChange={onDeveloperChange} />
-      <RepositorySelector repositories={repositoryOptions} value={selectedRepositories} onChange={onRepositoryChange} />
-      <TopicSelector topics={topicOptions} value={selectedTopics} onChange={onTopicChange} />
+    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} flexWrap="wrap" justifyContent="space-between" alignItems={{ xs: 'stretch', md: 'center' }}>
+      <DeveloperSelector developers={developerOptions} value={draftDeveloper ?? selectedDeveloper} onChange={onDeveloperChange} />
+      <RepositorySelector repositories={repositoryOptions} value={draftRepositories} onChange={onRepositoryChange} />
+      <TopicSelector
+        topics={topicOptions}
+        value={draftTopics}
+        onChange={onTopicChange}
+        disabled={topicDisabled}
+        onOpenChange={onTopicMenuOpenChange}
+      />
       <FormControlLabel
-        control={<Switch checked={live} onChange={(event) => onLiveChange(event.target.checked)} />}
+        control={<Switch checked={draftLive} onChange={(event) => onLiveChange(event.target.checked)} />}
         label="Live only"
       />
+      <Stack direction="row" spacing={1}>
+        <Button variant="outlined" size="small" onClick={onResetFilters}>
+          Reset
+        </Button>
+        <Button variant="contained" size="small" onClick={onApplyFilters}>
+          Apply
+        </Button>
+      </Stack>
     </Stack>
     <DateRangePicker
-      startDate={startDate}
-      endDate={endDate}
+      startDate={draftStartDate}
+      endDate={draftEndDate}
       onStartDateChange={onStartDateChange}
       onEndDateChange={onEndDateChange}
     />

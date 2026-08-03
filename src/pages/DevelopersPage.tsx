@@ -1,4 +1,4 @@
-import { Box, Card, CardContent, Grid, Link, Stack, Typography } from '@mui/material';
+import { Box, Card, CardContent, Grid, Link, Stack, TextField, Typography } from '@mui/material';
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link as RouterLink } from 'react-router-dom';
@@ -29,39 +29,60 @@ const DevelopersPage: React.FC = () => {
   return (
     <Box>
       <Stack spacing={3}>
-        <Stack>
+        <Stack spacing={1}>
           <Typography variant="h4">Developers</Typography>
-          <Typography color="text.secondary">Browse developer performance details from Gerrit.</Typography>
+          <Typography color="text.secondary">
+            Explore contributor activity, review engagement, and repository-level performance in one place.
+          </Typography>
         </Stack>
 
-        <SectionCard title="Developer list">
-          <Card>
-            <CardContent>
-              <input
-                type="search"
-                placeholder="Search developers"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                style={{ width: '100%', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: '#0b1220', color: '#fff' }}
-              />
-              <Grid container spacing={2} sx={{ mt: 2 }}>
-                {filteredDevelopers.map((developer) => (
-                  <Grid key={developer} item xs={12} sm={6} md={4}>
-                    <Card sx={{ bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.08)' }}>
-                      <CardContent>
-                        <Typography variant="subtitle1" gutterBottom>
-                          {developer}
-                        </Typography>
-                        <Link component={RouterLink} to={`/developers/${encodeURIComponent(developer)}`} underline="hover">
-                          View details
-                        </Link>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                ))}
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={4}>
+            <Card sx={{ bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.08)', height: '100%' }}>
+              <CardContent>
+                <Typography variant="subtitle2" color="text.secondary">Available contributors</Typography>
+                <Typography variant="h4" sx={{ mt: 1 }}>{developers.length}</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={8}>
+            <Card sx={{ bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.08)', height: '100%' }}>
+              <CardContent>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Search developers"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  Select a developer to view repository breakdowns, review trends, build health, and topic-based insights.
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+
+        <SectionCard title="Developer overview">
+          <Grid container spacing={2}>
+            {filteredDevelopers.map((developer) => (
+              <Grid key={developer} item xs={12} sm={6} md={4}>
+                <Card sx={{ bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.08)', height: '100%' }}>
+                  <CardContent>
+                    <Typography variant="subtitle1" gutterBottom>
+                      {developer}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Open the detailed dashboard to inspect repositories, topics, review activity, and build outcomes.
+                    </Typography>
+                    <Link component={RouterLink} to={`/developers/${encodeURIComponent(developer)}`} underline="hover">
+                      Open dashboard
+                    </Link>
+                  </CardContent>
+                </Card>
               </Grid>
-            </CardContent>
-          </Card>
+            ))}
+          </Grid>
         </SectionCard>
       </Stack>
     </Box>
