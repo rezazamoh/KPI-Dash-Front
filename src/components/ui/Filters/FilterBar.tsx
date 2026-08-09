@@ -8,20 +8,23 @@ interface FilterBarProps {
   developerOptions: string[];
   repositoryOptions: string[];
   topicOptions: string[];
-  selectedDeveloper: string | null;
+  selectedDeveloper: string | string[] | null;
   selectedRepositories: string[];
   selectedTopics: string[];
   startDate: string;
   endDate: string;
   live: boolean;
   topicDisabled?: boolean;
-  draftDeveloper: string | null;
+  showRepositorySelector?: boolean;
+  showTopicSelector?: boolean;
+  developerMultiple?: boolean;
+  draftDeveloper: string | string[] | null;
   draftRepositories: string[];
   draftTopics: string[];
   draftStartDate: string;
   draftEndDate: string;
   draftLive: boolean;
-  onDeveloperChange: (value: string | null) => void;
+  onDeveloperChange: (value: string | string[] | null) => void;
   onRepositoryChange: (value: string[]) => void;
   onTopicChange: (value: string[]) => void;
   onStartDateChange: (value: string) => void;
@@ -43,6 +46,9 @@ const FilterBar: React.FC<FilterBarProps> = ({
   endDate,
   live,
   topicDisabled = false,
+  showRepositorySelector = true,
+  showTopicSelector = true,
+  developerMultiple = false,
   draftDeveloper,
   draftRepositories,
   draftTopics,
@@ -60,16 +66,31 @@ const FilterBar: React.FC<FilterBarProps> = ({
   onTopicMenuOpenChange,
 }) => (
   <Stack spacing={3} sx={{ mb: 4 }}>
-    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} flexWrap="wrap" justifyContent="space-between" alignItems={{ xs: 'stretch', md: 'center' }}>
-      <DeveloperSelector developers={developerOptions} value={draftDeveloper ?? selectedDeveloper} onChange={onDeveloperChange} />
-      <RepositorySelector repositories={repositoryOptions} value={draftRepositories} onChange={onRepositoryChange} />
-      <TopicSelector
-        topics={topicOptions}
-        value={draftTopics}
-        onChange={onTopicChange}
-        disabled={topicDisabled}
-        onOpenChange={onTopicMenuOpenChange}
+    <Stack
+      direction={{ xs: 'column', md: 'row' }}
+      spacing={2}
+      flexWrap="wrap"
+      justifyContent="space-between"
+      alignItems={{ xs: 'stretch', md: 'center' }}
+    >
+      <DeveloperSelector
+        developers={developerOptions}
+        value={draftDeveloper ?? selectedDeveloper}
+        onChange={onDeveloperChange}
+        multiple={developerMultiple}
       />
+      {showRepositorySelector ? (
+        <RepositorySelector repositories={repositoryOptions} value={draftRepositories} onChange={onRepositoryChange} />
+      ) : null}
+      {showTopicSelector ? (
+        <TopicSelector
+          topics={topicOptions}
+          value={draftTopics}
+          onChange={onTopicChange}
+          disabled={topicDisabled}
+          onOpenChange={onTopicMenuOpenChange}
+        />
+      ) : null}
       <FormControlLabel
         control={<Switch checked={draftLive} onChange={(event) => onLiveChange(event.target.checked)} />}
         label="Live only"

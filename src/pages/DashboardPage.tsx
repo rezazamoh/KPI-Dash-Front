@@ -1,4 +1,5 @@
-import { Box, Grid, Paper, Stack, Typography } from '@mui/material';
+import { Box, FormControlLabel, Grid, Paper, Stack, Switch, Typography } from '@mui/material';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchDevelopers } from '@/api/developers';
 import { fetchProjects } from '@/api/projects';
@@ -6,10 +7,16 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorPanel from '@/components/ui/ErrorPanel';
 import MetricCard from '@/components/ui/MetricCard';
 import SectionCard from '@/components/ui/SectionCard';
+import { getDefaultLiveValue, setDefaultLiveValue } from '@/utils/livePreference';
 
 const DashboardPage: React.FC = () => {
   const developersQuery = useQuery({ queryKey: ['developers'], queryFn: fetchDevelopers });
   const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
+  const [defaultLive, setDefaultLive] = useState(getDefaultLiveValue);
+
+  useEffect(() => {
+    setDefaultLiveValue(defaultLive);
+  }, [defaultLive]);
 
   if (developersQuery.isLoading || projectsQuery.isLoading) {
     return <LoadingSpinner />;
@@ -38,9 +45,19 @@ const DashboardPage: React.FC = () => {
             <MetricCard title="Total projects" value={projects.length} />
           </Grid>
           <Grid item xs={12} md={4}>
-            <MetricCard title="Live mode" value="Enabled" subtitle="Showing current Gerrit data" />
+            <MetricCard title="Live mode" value={defaultLive ? 'Enabled' : 'Disabled'} subtitle={defaultLive ? 'Showing current Gerrit data' : 'Using cached snapshot data by default'} />
           </Grid>
         </Grid>
+
+        <SectionCard title="Default data mode">
+          <Stack spacing={1.5}>
+            <Typography color="text.secondary">Choose the default mode used by developer and project detail pages when you open them.</Typography>
+            <FormControlLabel
+              control={<Switch checked={defaultLive} onChange={(event) => setDefaultLive(event.target.checked)} />}
+              label={defaultLive ? 'Live data by default' : 'Cached data by default'}
+            />
+          </Stack>
+        </SectionCard>
 
         <SectionCard title="Quick navigation">
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>

@@ -21,6 +21,8 @@ export interface GraphEdge {
   totalInteractions: number;
 }
 
+export type CollaborationMode = 'reviews' | 'comments' | 'combined';
+
 const getMetricStats = (metric: PeopleStats | null | undefined) => ({
   perPerson: metric?.stats?.per_person?.mean ?? 0,
   perChange: metric?.stats?.per_change?.mean ?? 0,
@@ -32,12 +34,13 @@ const getMetricCount = (metric: PeopleStats | null | undefined, username: string
 
 export const buildDeveloperRelationshipGraph = (
   developerName: string,
-  data: DeveloperDetailResponse,
+  data?: DeveloperDetailResponse | null,
+  mode: CollaborationMode = 'combined',
 ): { nodes: GraphNode[]; edges: GraphEdge[] } => {
-  const metrics = data.overall_performance;
+  const metrics = data?.overall_performance;
   const peerNames = new Set<string>();
 
-  [metrics.review_requests_sent, metrics.review_requests_received, metrics.comments_sent, metrics.comments_received].forEach((metric) => {
+  [metrics?.review_requests_sent, metrics?.review_requests_received, metrics?.comments_sent, metrics?.comments_received].forEach((metric) => {
     metric?.people.forEach((item) => peerNames.add(item.username));
   });
 
@@ -50,29 +53,30 @@ export const buildDeveloperRelationshipGraph = (
 
   const edges: GraphEdge[] = peerList
     .map((peer) => {
-      const reviewRequestsSent = getMetricCount(metrics.review_requests_sent, peer);
-      const reviewRequestsReceived = getMetricCount(metrics.review_requests_received, peer);
-      const commentsSent = getMetricCount(metrics.comments_sent, peer);
-      const commentsReceived = getMetricCount(metrics.comments_received, peer);
+      const reviewRequestsSent = getMetricCount(metrics?.review_requests_sent, peer);
+      const reviewRequestsReceived = getMetricCount(metrics?.review_requests_received, peer);
+      const commentsSent = getMetricCount(metrics?.comments_sent, peer);
+      const commentsReceived = getMetricCount(metrics?.comments_received, peer);
 
       const reviewCount = reviewRequestsSent + reviewRequestsReceived;
       const commentCount = commentsSent + commentsReceived;
       const totalInteractions = reviewCount + commentCount;
 
-      if (!totalInteractions) {
+      const modeWeight = mode === 'reviews' ? reviewCount : mode === 'comments' ? commentCount : totalInteractions;
+      if (!modeWeight) {
         return null;
       }
 
-      const reviewStats = getMetricStats(metrics.review_requests_sent);
-      const reviewReceivedStats = getMetricStats(metrics.review_requests_received);
-      const commentStats = getMetricStats(metrics.comments_sent);
-      const commentReceivedStats = getMetricStats(metrics.comments_received);
+      const reviewStats = getMetricStats(metrics?.review_requests_sent);
+      const reviewReceivedStats = getMetricStats(metrics?.review_requests_received);
+      const commentStats = getMetricStats(metrics?.comments_sent);
+      const commentReceivedStats = getMetricStats(metrics?.comments_received);
 
       return {
         id: `${developerName}-${peer}`,
         source: developerName,
         target: peer,
-        weight: totalInteractions,
+        weight: modeWeight,
         reviewCount,
         commentCount,
         reviewPerPerson: (reviewStats.perPerson + reviewReceivedStats.perPerson) / 2,

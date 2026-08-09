@@ -1,6 +1,6 @@
-import { Alert, Box, Chip, Divider, Grid, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, Collapse, Divider, Grid, Link, Paper, Stack, Typography } from '@mui/material';
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link as RouterLink, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchDeveloper, fetchDeveloperTopics, fetchDevelopers } from '@/api/developers';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -8,10 +8,11 @@ import ErrorPanel from '@/components/ui/ErrorPanel';
 import MetricCard from '@/components/ui/MetricCard';
 import SectionCard from '@/components/ui/SectionCard';
 import FilterBar from '@/components/ui/Filters/FilterBar';
-import ChartCard from '@/components/ui/ChartCard';
 import MetricsTable from '@/components/ui/MetricsTable';
-import { DeveloperDetailResponse } from '@/types/developers';
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import RelationshipGraph from '@/components/ui/RelationshipGraph';
+import { buildDeveloperRelationshipGraph, CollaborationMode } from '@/utils/relationshipGraph';
+import { DeveloperDetailResponse, PeopleStats } from '@/types/developers';
+import { getDefaultLiveValue } from '@/utils/livePreference';
 
 const formatPercent = (value: number | null | undefined) => {
   if (typeof value !== 'number' || Number.isNaN(value)) {
@@ -19,6 +20,44 @@ const formatPercent = (value: number | null | undefined) => {
   }
 
   return `${value.toFixed(2)}%`;
+};
+
+const formatDeveloperTitle = (username: string) => {
+  return username
+    .split('.')
+    .map((part) => (part ? `${part[0].toUpperCase()}${part.slice(1)}` : ''))
+    .join('. ');
+};
+
+const formatDateLabel = (value: string | null | undefined) => {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
+
+const sumPeople = (people: Array<{ username: string; count: number }>) =>
+  people.reduce((sum, item) => sum + item.count, 0);
+
+const buildPeopleSummary = (metric: PeopleStats | null | undefined) => {
+  const people = metric?.people ?? [];
+  if (!people.length) {
+    return null;
+  }
+
+  const total = sumPeople(people);
+  const most = people.reduce((best, item) => (item.count > best.count ? item : best), people[0]);
+  const least = people.reduce((best, item) => (item.count < best.count ? item : best), people[0]);
+
+  return {
+    total,
+    peopleCount: people.length,
+    average: metric?.stats?.per_person?.mean ?? null,
+    most,
+    least,
+  };
 };
 
 const DeveloperDetailPage: React.FC = () => {
@@ -29,14 +68,17 @@ const DeveloperDetailPage: React.FC = () => {
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [live, setLive] = useState(true);
+  const [live, setLive] = useState(getDefaultLiveValue);
   const [draftDeveloper, setDraftDeveloper] = useState<string | null>(username ?? null);
   const [draftRepositories, setDraftRepositories] = useState<string[]>([]);
   const [draftTopics, setDraftTopics] = useState<string[]>([]);
   const [draftStartDate, setDraftStartDate] = useState('');
   const [draftEndDate, setDraftEndDate] = useState('');
-  const [draftLive, setDraftLive] = useState(true);
+  const [draftLive, setDraftLive] = useState(getDefaultLiveValue);
   const [topicMenuOpen, setTopicMenuOpen] = useState(false);
+  const [collaborationMode, setCollaborationMode] = useState<CollaborationMode>('combined');
+  const [showBuildFailureDetails, setShowBuildFailureDetails] = useState(false);
+  const [showRawJson, setShowRawJson] = useState(false);
 
   useEffect(() => {
     setDraftDeveloper(selectedDeveloper);
@@ -79,8 +121,101 @@ const DeveloperDetailPage: React.FC = () => {
 
   const repositoryOptions = useMemo(() => {
     const projects = detailQuery.data?.overall_performance?.projects ?? [];
-    return Array.from(new Set(projects.map((item) => item.project).filter(Boolean))).sort();
-  }, [detailQuery.data?.overall_performance?.projects]);
+    const statusRepos = Object.values(detailQuery.data?.overall_performance?.changes_by_status_per_repo ?? {}).flatMap((repoMap) => Object.keys(repoMap));
+    return Array.from(new Set([...projects.map((item) => item.project), ...statusRepos])).sort();
+  }, [detailQuery.data?.overall_performance]);
+
+  const data = detailQuery.data;
+  const metrics = data?.overall_performance;
+
+  const collaborationPeers = useMemo(() => {
+    const peerSet = new Set<string>();
+    const sent = metrics?.review_requests_sent?.people ?? [];
+    const received = metrics?.review_requests_received?.people ?? [];
+    const commentsOut = metrics?.comments_sent?.people ?? [];
+    const commentsIn = metrics?.comments_received?.people ?? [];
+    sent.forEach((item) => peerSet.add(item.username));
+    received.forEach((item) => peerSet.add(item.username));
+    commentsOut.forEach((item) => peerSet.add(item.username));
+    commentsIn.forEach((item) => peerSet.add(item.username));
+    return Array.from(peerSet).sort();
+  }, [metrics]);
+
+  const collaborationRows = useMemo(() => {
+    return collaborationPeers.map((peer) => {
+      const sentReviews = metrics?.review_requests_sent?.people.find((item) => item.username === peer)?.count ?? 0;
+      const receivedReviews = metrics?.review_requests_received?.people.find((item) => item.username === peer)?.count ?? 0;
+      const sentComments = metrics?.comments_sent?.people.find((item) => item.username === peer)?.count ?? 0;
+      const receivedComments = metrics?.comments_received?.people.find((item) => item.username === peer)?.count ?? 0;
+      return {
+        username: peer,
+        reviewSent: sentReviews,
+        reviewReceived: receivedReviews,
+        commentsSent: sentComments,
+        commentsReceived: receivedComments,
+        total: sentReviews + receivedReviews + sentComments + receivedComments,
+      };
+    }).sort((a, b) => b.total - a.total);
+  }, [collaborationPeers, metrics]);
+
+  const totalRepositories = useMemo(() => {
+    const repoSet = new Set<string>();
+    metrics?.projects.forEach((item) => repoSet.add(item.project));
+    Object.values(metrics?.changes_by_status_per_repo ?? {}).forEach((repoMap) => {
+      Object.keys(repoMap).forEach((repo) => repoSet.add(repo));
+    });
+    return repoSet.size;
+  }, [metrics]);
+
+  const repositoryRows = useMemo(() => {
+    const repoStatus: Record<string, Record<string, number>> = {};
+    Object.entries(metrics?.changes_by_status_per_repo ?? {}).forEach(([status, repos]) => {
+      Object.entries(repos).forEach(([repo, count]) => {
+        if (!repoStatus[repo]) {
+          repoStatus[repo] = {};
+        }
+        repoStatus[repo][status] = count;
+      });
+    });
+
+    return Array.from(new Set([...(metrics?.projects.map((item) => item.project) ?? []), ...Object.keys(repoStatus)])).map((repo) => {
+      const projectEntry = metrics?.projects.find((item) => item.project === repo);
+      const statuses = repoStatus[repo] ?? {};
+      const totalFromStatuses = Object.values(statuses).reduce((sum, count) => sum + count, 0);
+      return {
+        repo,
+        total: projectEntry?.changes ?? totalFromStatuses,
+        statuses,
+      };
+    }).sort((a, b) => (b.total ?? 0) - (a.total ?? 0));
+  }, [metrics]);
+
+  const graphData = useMemo(
+    () => (data ? buildDeveloperRelationshipGraph(developerName, data, collaborationMode) : { nodes: [], edges: [] }),
+    [developerName, data, collaborationMode],
+  );
+
+  const reducedGraph = useMemo(() => {
+    const edges = [...graphData.edges].sort((left, right) => right.weight - left.weight).slice(0, 10);
+    const nodeIds = new Set<string>();
+    edges.forEach((edge) => {
+      nodeIds.add(edge.source);
+      nodeIds.add(edge.target);
+    });
+    return {
+      nodes: graphData.nodes.filter((node) => nodeIds.has(node.id)),
+      edges,
+      totalEdges: graphData.edges.length,
+    };
+  }, [graphData]);
+
+  const statusPalette: Record<string, string> = {
+    MERGED: 'success.main',
+    ABANDONED: 'error.main',
+    OPEN: 'warning.main',
+    DRAFT: 'info.main',
+    NEEDS_REVIEW: 'secondary.main',
+  };
 
   if (developersQuery.isLoading || detailQuery.isLoading) {
     return <LoadingSpinner />;
@@ -90,58 +225,60 @@ const DeveloperDetailPage: React.FC = () => {
     return <ErrorPanel message="Unable to load developer details." />;
   }
 
-  if (!developerName || !detailQuery.data) {
+  if (!developerName || !detailQuery.data || !metrics) {
     return <ErrorPanel message="Developer is not selected or data is unavailable." />;
   }
 
-  const data = detailQuery.data;
-  const metrics = data.overall_performance;
+  const developerTitle = formatDeveloperTitle(data.username);
 
-  const leadTimeSeries = metrics.lead_time ? [
-    { name: 'Min', value: metrics.lead_time.min?.hours ?? 0 },
-    { name: 'Mean', value: metrics.lead_time.mean ?? 0 },
-    { name: 'Max', value: metrics.lead_time.max?.hours ?? 0 },
-  ] : [];
-
-  const statusSeries = Object.entries(metrics.changes_by_status_per_repo ?? {}).map(([status, repos]) => ({
-    name: status,
-    value: Object.values(repos).reduce((total, count) => total + count, 0),
-  }));
-
-  const buildFailureSeries = Object.entries(metrics.build_failure_rate?.by_label ?? {}).map(([label, details]) => ({
-    name: label,
-    value: details.failure_rate,
-  }));
+  const activeRepoLabel = data.filters.repo?.length
+    ? data.filters.repo.length === 1
+      ? data.filters.repo[0]
+      : `${data.filters.repo.length} repositories`
+    : 'All projects';
+  const activeTopicLabel = data.filters.topic?.length
+    ? data.filters.topic.length === 1
+      ? data.filters.topic[0]
+      : `${data.filters.topic.length} topics`
+    : 'All topics';
+  const activeDateLabel = data.filters.start_date || data.filters.end_date
+    ? `${formatDateLabel(data.filters.start_date) ?? 'Any date'} – ${formatDateLabel(data.filters.end_date) ?? 'Any date'}`
+    : 'All dates';
+  const isCached = data.live === false;
 
   const reviewRequestsReceived = metrics.review_requests_received?.people ?? [];
   const reviewRequestsSent = metrics.review_requests_sent?.people ?? [];
   const commentsReceived = metrics.comments_received?.people ?? [];
   const commentsSent = metrics.comments_sent?.people ?? [];
 
-  const repoBreakdown = Object.entries(data.grouped_by_repo ?? {}).map(([repo, repoMetrics]) => ({
-    repo,
-    changeCount: repoMetrics.change_count,
-    averagePatchsets: repoMetrics.average_patchsets,
-    leadTime: repoMetrics.lead_time?.mean ?? null,
-    failureRate: repoMetrics.build_failure_rate?.overall_failure_rate ?? null,
-  }));
+  const reviewRequestsSentSummary = buildPeopleSummary(metrics.review_requests_sent);
+  const reviewRequestsReceivedSummary = buildPeopleSummary(metrics.review_requests_received);
+  const commentsSentSummary = buildPeopleSummary(metrics.comments_sent);
+  const commentsReceivedSummary = buildPeopleSummary(metrics.comments_received);
 
-  const selectedRepositoryLabel = selectedRepositories.length ? selectedRepositories.join(', ') : 'All repositories';
-  const selectedTopicLabel = selectedTopics.length ? selectedTopics.join(', ') : 'All topics';
+  const hasAnyCollaboration = collaborationRows.length > 0;
+  const hasAnyActivity = metrics.change_count > 0 || hasAnyCollaboration;
 
   return (
     <Box>
       <Stack spacing={3}>
         <Stack spacing={1}>
-          <Typography variant="h4">{developerName}</Typography>
+          <Typography variant="h4">{developerTitle}</Typography>
+          <Typography variant="subtitle1">Developer Performance</Typography>
           <Typography color="text.secondary">
-            Snapshot from {new Date(data.snapshot_time).toLocaleString()} • {data.live ? 'Live data' : 'Historical snapshot'}
+            {activeRepoLabel} · {activeTopicLabel} · {activeDateLabel}
           </Typography>
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            <Chip label={selectedRepositoryLabel} color="primary" variant="outlined" />
-            <Chip label={selectedTopicLabel} color="secondary" variant="outlined" />
-            <Chip label={data.filters.start_date ? `From ${data.filters.start_date}` : 'All dates'} variant="outlined" />
-            <Chip label={data.filters.end_date ? `To ${data.filters.end_date}` : 'All dates'} variant="outlined" />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center" flexWrap="wrap">
+            <Chip label={data.live ? '● Live data' : '● Cached snapshot'} variant="outlined" />
+            {isCached ? (
+              <Chip
+                label={`Snapshot: ${formatDateLabel(data.snapshot_time)} ${new Date(data.snapshot_time).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}`}
+                variant="outlined"
+              />
+            ) : null}
           </Stack>
         </Stack>
 
@@ -190,139 +327,499 @@ const DeveloperDetailPage: React.FC = () => {
             setDraftTopics([]);
             setDraftStartDate('');
             setDraftEndDate('');
-            setDraftLive(true);
+            setDraftLive(getDefaultLiveValue());
             setSelectedDeveloper(username ?? null);
             setSelectedRepositories([]);
             setSelectedTopics([]);
             setStartDate('');
             setEndDate('');
-            setLive(true);
+            setLive(getDefaultLiveValue());
           }}
         />
 
-        {!selectedRepositories.length && !selectedTopics.length && (
-          <Alert severity="info">Select one or more repositories to enable topic filtering and explore repository-specific activity.</Alert>
+        {!hasAnyActivity && (
+          <Alert severity="info">
+            No activity found. {developerTitle} has no changes or collaboration data matching the current filters.
+          </Alert>
         )}
 
         <Grid container spacing={3}>
-          <Grid item xs={12} md={3}>
-            <MetricCard title="Total changes" value={metrics.change_count} accent="primary.main" />
+          <Grid item xs={12} md={4}>
+            <MetricCard
+              title="Changes"
+              value={metrics.change_count}
+              subtitle={metrics.change_count ? `Across ${totalRepositories} repositories` : 'No changes in selected scope'}
+              accent="primary.main"
+            />
           </Grid>
-          <Grid item xs={12} md={3}>
-            <MetricCard title="Average patchsets" value={metrics.average_patchsets.toFixed(2)} accent="secondary.main" />
+          <Grid item xs={12} md={4}>
+            <MetricCard
+              title="Avg. patchsets"
+              value={metrics.average_patchsets.toFixed(2)}
+              subtitle="Per change"
+              accent="secondary.main"
+            />
           </Grid>
-          <Grid item xs={12} md={3}>
-            <MetricCard title="Mean lead time" value={metrics.lead_time?.mean ? `${metrics.lead_time.mean.toFixed(2)}h` : '—'} subtitle="Hours per change" />
+          <Grid item xs={12} md={4}>
+            <MetricCard
+              title="Review response"
+              value={metrics.reviewer_response_time ? `${metrics.reviewer_response_time.mean_hours.toFixed(2)} h` : '—'}
+              subtitle={metrics.reviewer_response_time ? 'Average reviewer response time' : 'No data available'}
+              accent="success.main"
+            />
           </Grid>
-          <Grid item xs={12} md={3}>
-            <MetricCard title="Build failure rate" value={formatPercent(metrics.build_failure_rate?.overall_failure_rate)} subtitle="Overall failure rate" />
+          <Grid item xs={12} md={4}>
+            <MetricCard
+              title="Reviews sent"
+              value={reviewRequestsSentSummary?.total ?? 0}
+              subtitle={reviewRequestsSentSummary ? `${reviewRequestsSentSummary.peopleCount} people` : 'No review requests sent'}
+              accent="info.main"
+            />
           </Grid>
-        </Grid>
-
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
-            <ChartCard title="Change status mix">
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={statusSeries}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                  <XAxis dataKey="name" stroke="#cfd8fc" />
-                  <YAxis stroke="#cfd8fc" />
-                  <Tooltip />
-                  <Bar dataKey="value" fill="#7c4dff" />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <ChartCard title="Lead time profile">
-              {leadTimeSeries.length ? (
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={leadTimeSeries}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                    <XAxis dataKey="name" stroke="#cfd8fc" />
-                    <YAxis stroke="#cfd8fc" />
-                    <Tooltip />
-                    <Bar dataKey="value" fill="#3f8cff" />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <Typography color="text.secondary">Lead time data is unavailable.</Typography>
-              )}
-            </ChartCard>
+          <Grid item xs={12} md={4}>
+            <MetricCard
+              title="Comments sent"
+              value={commentsSentSummary?.total ?? 0}
+              subtitle={commentsSentSummary ? `${commentsSentSummary.peopleCount} people` : 'No comments sent'}
+              accent="warning.main"
+            />
           </Grid>
         </Grid>
 
         <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
-            <SectionCard title="Top repositories">
-              <Stack spacing={2}>
-                {repoBreakdown.length ? repoBreakdown.slice(0, 6).map((repo) => (
-                  <Box key={repo.repo} sx={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 2, p: 2 }}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center">
-                      <Typography fontWeight={600}>{repo.repo}</Typography>
-                      <Chip size="small" label={`${repo.changeCount} changes`} />
-                    </Stack>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                      Avg patchsets: {repo.averagePatchsets.toFixed(2)} • Mean lead time: {repo.leadTime ? `${repo.leadTime.toFixed(2)}h` : '—'}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Build failure rate: {repo.failureRate !== null ? formatPercent(repo.failureRate) : '—'}
-                    </Typography>
-                  </Box>
-                )) : <Typography color="text.secondary">No repository breakdown is available.</Typography>}
-              </Stack>
-            </SectionCard>
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <SectionCard title="Build health">
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={buildFailureSeries}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                  <XAxis dataKey="name" stroke="#cfd8fc" />
-                  <YAxis stroke="#cfd8fc" />
-                  <Tooltip />
-                  <Bar dataKey="value" fill="#ff8a65">
-                    {buildFailureSeries.map((entry) => (
-                      <Cell key={entry.name} fill={entry.value > 10 ? '#ff5252' : '#ff8a65'} />
+          <Grid item xs={12} lg={6}>
+            <SectionCard title="Repository activity">
+              {repositoryRows.length ? (
+                <Box sx={{ maxHeight: 420, overflowY: 'auto', pr: 1 }}>
+                  <Stack spacing={2}>
+                    {repositoryRows.map((row) => {
+                      const total = row.total ?? 0;
+                      const segments = Object.entries(row.statuses).sort((a, b) => b[1] - a[1]);
+                    return (
+                      <Box key={row.repo} sx={{ p: 2, borderRadius: 2, border: '1px solid rgba(255,255,255,0.08)' }}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" spacing={2}>
+                          <Box>
+                            <Typography fontWeight={600}>
+                              <Link component={RouterLink} to={`/projects/${encodeURIComponent(row.repo)}`} underline="hover">
+                                {row.repo}
+                              </Link>
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {total ? `${total} change${total === 1 ? '' : 's'}` : 'No changes recorded'}
+                            </Typography>
+                          </Box>
+                          <Typography variant="caption" color="text.secondary">
+                            {segments.map(([status, value]) => `${status} ${value}`).join(' · ')}
+                          </Typography>
+                        </Stack>
+
+                        {total ? (
+                          <Box sx={{ mt: 2 }}>
+                            <Box sx={{ display: 'flex', height: 12, borderRadius: 1, overflow: 'hidden', bgcolor: 'rgba(255,255,255,0.06)' }}>
+                              {segments.map(([status, count]) => (
+                                <Box
+                                  key={status}
+                                  sx={{
+                                    width: `${(count / total) * 100}%`,
+                                    bgcolor: statusPalette[status] ?? 'primary.main',
+                                  }}
+                                  title={`${status}: ${count}`}
+                                />
+                              ))}
+                            </Box>
+                            <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1 }}>
+                              {segments.map(([status, count]) => (
+                                <Chip
+                                  key={status}
+                                  size="small"
+                                  label={`${status} ${count}`}
+                                  sx={{
+                                    bgcolor: statusPalette[status] ?? 'rgba(144,202,249,0.18)',
+                                    color: 'text.primary',
+                                    border: '1px solid rgba(255,255,255,0.08)',
+                                  }}
+                                />
+                              ))}
+                            </Stack>
+                          </Box>
+                        ) : null}
+                      </Box>
+                    );
+                  })}
+                  <Stack direction="row" spacing={1} flexWrap="wrap">
+                    {Array.from(new Set(Object.values(metrics.changes_by_status_per_repo ?? {}).flatMap((repoMap) => Object.keys(repoMap)))).map((status) => (
+                      <Chip
+                        key={status}
+                        label={status}
+                        size="small"
+                        sx={{ bgcolor: statusPalette[status] ?? 'rgba(144,202,249,0.18)', color: 'text.primary' }}
+                      />
                     ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+                  </Stack>
+                </Stack>
+              </Box>
+              ) : (
+                <Typography color="text.secondary">No repository activity found for the current filters.</Typography>
+              )}
+            </SectionCard>
+          </Grid>
+
+          <Grid item xs={12} lg={6}>
+            <SectionCard title="Review & delivery metrics">
+              <Stack spacing={3}>
+                <Box>
+                  <Typography variant="subtitle1" gutterBottom>
+                    Reviewer response time
+                  </Typography>
+                  {metrics.reviewer_response_time ? (
+                    <Stack spacing={2}>
+                      <Typography variant="h4" sx={{ color: 'success.main' }}>
+                        {metrics.reviewer_response_time.mean_hours.toFixed(2)} h
+                      </Typography>
+                      <Typography color="text.secondary">Average response time across the current selection.</Typography>
+                      <Box sx={{ position: 'relative', height: 12, bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 1 }}>
+                        <Box sx={{ position: 'absolute', left: `${(metrics.reviewer_response_time.min_hours / Math.max(metrics.reviewer_response_time.max_hours, 1)) * 100}%`, width: 2, height: 12, bgcolor: 'success.dark' }} />
+                        <Box sx={{ position: 'absolute', left: `${(metrics.reviewer_response_time.mean_hours / Math.max(metrics.reviewer_response_time.max_hours, 1)) * 100}%`, width: 2, height: 16, bgcolor: 'primary.main' }} />
+                        <Box sx={{ position: 'absolute', left: `${(metrics.reviewer_response_time.max_hours / Math.max(metrics.reviewer_response_time.max_hours, 1)) * 100}%`, width: 2, height: 12, bgcolor: 'error.dark' }} />
+                      </Box>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        This bar compares the fastest, average, and slowest reviewer response times in the selected scope.
+                      </Typography>
+                      <Stack direction="row" spacing={2} flexWrap="wrap" sx={{ mt: 0.5 }}>
+                        <Typography variant="caption" color="text.secondary">
+                          <Box component="span" sx={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', bgcolor: 'success.dark', mr: 0.75, verticalAlign: 'middle' }} />
+                          Fastest
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          <Box component="span" sx={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', bgcolor: 'primary.main', mr: 0.75, verticalAlign: 'middle' }} />
+                          Average
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          <Box component="span" sx={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', bgcolor: 'error.dark', mr: 0.75, verticalAlign: 'middle' }} />
+                          Slowest
+                        </Typography>
+                      </Stack>
+                      <Stack direction="row" justifyContent="space-between">
+                        <Typography variant="caption" color="text.secondary">
+                          {metrics.reviewer_response_time.min_hours.toFixed(2)} h fastest
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {metrics.reviewer_response_time.max_hours.toFixed(2)} h slowest
+                        </Typography>
+                      </Stack>
+                    </Stack>
+                  ) : (
+                    <Typography color="text.secondary">No reviewer response time data available for this scope.</Typography>
+                  )}
+                </Box>
+
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <Box sx={{ p: 2, borderRadius: 2, border: '1px solid rgba(255,255,255,0.08)' }}>
+                      <Typography variant="subtitle2">Lead time</Typography>
+                      <Typography variant="h5" sx={{ mt: 1 }}>
+                        {metrics.lead_time?.mean !== undefined && metrics.lead_time !== null ? `${metrics.lead_time.mean.toFixed(2)} h` : '—'}
+                      </Typography>
+                      <Stack spacing={1} sx={{ mt: 1 }}>
+                        {metrics.lead_time ? (
+                          <>
+                            <Typography variant="body2" color="text.secondary">
+                              Mean lead time across qualifying changes.
+                            </Typography>
+                            <Stack direction="row" spacing={2} flexWrap="wrap">
+                              <Typography variant="caption" color="text.secondary">
+                                Fastest: {metrics.lead_time.min.hours.toFixed(2)} h
+                                {metrics.lead_time.min.url ? (
+                                  <Link href={metrics.lead_time.min.url} target="_blank" rel="noreferrer" underline="hover" sx={{ ml: 0.5 }}>
+                                    view change
+                                  </Link>
+                                ) : null}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                Slowest: {metrics.lead_time.max.hours.toFixed(2)} h
+                                {metrics.lead_time.max.url ? (
+                                  <Link href={metrics.lead_time.max.url} target="_blank" rel="noreferrer" underline="hover" sx={{ ml: 0.5 }}>
+                                    view change
+                                  </Link>
+                                ) : null}
+                              </Typography>
+                            </Stack>
+                          </>
+                        ) : (
+                          'No data available for lead time in this scope.'
+                        )}
+                      </Stack>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Box sx={{ p: 2, borderRadius: 2, border: '1px solid rgba(255,255,255,0.08)' }}>
+                      <Typography variant="subtitle2">Build failure rate</Typography>
+                      <Typography variant="h5" sx={{ mt: 1 }}>
+                        {metrics.build_failure_rate?.overall_failure_rate !== undefined && metrics.build_failure_rate !== null
+                          ? `${metrics.build_failure_rate.overall_failure_rate.toFixed(2)}%`
+                          : '—'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        {metrics.build_failure_rate
+                          ? 'Overall failure rate for qualifying changes.'
+                          : 'No qualifying changes were found for this metric in the selected scope.'}
+                      </Typography>
+                      {metrics.build_failure_rate ? (
+                        <Button
+                          size="small"
+                          variant="text"
+                          onClick={() => setShowBuildFailureDetails((current) => !current)}
+                          sx={{ mt: 1, px: 0 }}
+                        >
+                          {showBuildFailureDetails ? 'Hide failure details' : 'Show failure details'}
+                        </Button>
+                      ) : null}
+                      <Collapse in={showBuildFailureDetails}>
+                        {metrics.build_failure_rate ? (
+                          <Box sx={{ mt: 2, p: 2, borderRadius: 2, border: '1px solid rgba(255,255,255,0.08)', bgcolor: 'rgba(255,255,255,0.04)' }}>
+                            <Typography variant="subtitle2">Build failure details</Typography>
+                            <Stack spacing={1} sx={{ mt: 1 }}>
+                              <Typography variant="body2" color="text.secondary">
+                                Total changes with builds: {metrics.build_failure_rate.total_changes_with_builds}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                Total build outcomes: {metrics.build_failure_rate.total_outcomes}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                Failed outcomes: {metrics.build_failure_rate.failed_outcomes}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                Changes with failures: {metrics.build_failure_rate.changes_with_failures}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                Changes failure rate: {metrics.build_failure_rate.changes_failure_rate.toFixed(2)}%
+                              </Typography>
+                              {Object.keys(metrics.build_failure_rate.by_label ?? {}).length ? (
+                                <Box>
+                                  <Typography variant="subtitle2" sx={{ mt: 1 }}>
+                                    Breakdown by label
+                                  </Typography>
+                                  <Stack spacing={1} sx={{ mt: 1 }}>
+                                    {Object.entries(metrics.build_failure_rate.by_label).map(([label, detail]) => (
+                                      <Typography key={label} variant="body2" color="text.secondary">
+                                        {label}: {detail.failed}/{detail.total} failed ({detail.failure_rate.toFixed(2)}%)
+                                      </Typography>
+                                    ))}
+                                  </Stack>
+                                </Box>
+                              ) : null}
+                            </Stack>
+                          </Box>
+                        ) : null}
+                      </Collapse>
+                    </Box>
+                  </Grid>
+                </Grid>
+              </Stack>
+            </SectionCard>
+          </Grid>
+        </Grid>
+
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <SectionCard title="Collaboration network">
+              <Stack spacing={2}>
+                <Typography color="text.secondary">
+                  The graph highlights peer relationships by review, comment or combined interaction counts.
+                </Typography>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                  {(['reviews', 'comments', 'combined'] as CollaborationMode[]).map((mode) => (
+                    <Button
+                      key={mode}
+                      size="small"
+                      variant={collaborationMode === mode ? 'contained' : 'outlined'}
+                      onClick={() => setCollaborationMode(mode)}
+                    >
+                      {mode === 'reviews' ? 'Reviews' : mode === 'comments' ? 'Comments' : 'Combined'}
+                    </Button>
+                  ))}
+                </Stack>
+                {!hasAnyCollaboration ? (
+                  <Typography color="text.secondary">No collaboration data is available for the selected filters.</Typography>
+                ) : (
+                  <>
+                    <Typography variant="body2" color="text.secondary">
+                      Showing {reducedGraph.edges.length} of {graphData.edges.length} relationships. Use the table below for the full per-person view.
+                    </Typography>
+                    <RelationshipGraph
+                      nodes={reducedGraph.nodes}
+                      edges={reducedGraph.edges}
+                      title="Developer collaboration"
+                      subtitle={`Top ${Math.min(reducedGraph.edges.length, 10)} relationships for ${collaborationMode}`}
+                      centerNodeId={developerName}
+                    />
+                  </>
+                )}
+              </Stack>
             </SectionCard>
           </Grid>
         </Grid>
 
         <Grid container spacing={3}>
           <Grid item xs={12} md={6}>
-            <SectionCard title="Review requests">
+            <SectionCard title="Sent / received collaboration">
               <Stack spacing={2}>
-                <Typography color="text.secondary">Received: {reviewRequestsReceived.length}</Typography>
-                <Typography color="text.secondary">Sent: {reviewRequestsSent.length}</Typography>
+                <Paper sx={{ p: 2, bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Review interaction
+                  </Typography>
+                  <Stack direction="row" spacing={3}>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Sent
+                      </Typography>
+                      <Typography fontWeight={600}>{reviewRequestsSentSummary?.total ?? 0}</Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Received
+                      </Typography>
+                      <Typography fontWeight={600}>{reviewRequestsReceivedSummary?.total ?? 0}</Typography>
+                    </Box>
+                  </Stack>
+                </Paper>
+                <Paper sx={{ p: 2, bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Comment interaction
+                  </Typography>
+                  <Stack direction="row" spacing={3}>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Sent
+                      </Typography>
+                      <Typography fontWeight={600}>{commentsSentSummary?.total ?? 0}</Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Received
+                      </Typography>
+                      <Typography fontWeight={600}>{commentsReceivedSummary?.total ?? 0}</Typography>
+                    </Box>
+                  </Stack>
+                </Paper>
               </Stack>
-              <Divider sx={{ my: 2 }} />
-              <MetricsTable
-                columns={[
-                  { key: 'username', label: 'Reviewer' },
-                  { key: 'count', label: 'Count' },
-                ]}
-                rows={reviewRequestsReceived.map((item) => ({ username: item.username, count: item.count }))}
-              />
             </SectionCard>
           </Grid>
           <Grid item xs={12} md={6}>
-            <SectionCard title="Comments">
-              <Stack spacing={2}>
-                <Typography color="text.secondary">Received: {commentsReceived.length}</Typography>
-                <Typography color="text.secondary">Sent: {commentsSent.length}</Typography>
-              </Stack>
-              <Divider sx={{ my: 2 }} />
-              <MetricsTable
-                columns={[
-                  { key: 'username', label: 'Commenter' },
-                  { key: 'count', label: 'Count' },
-                ]}
-                rows={commentsReceived.map((item) => ({ username: item.username, count: item.count }))}
-              />
+            <SectionCard title="Collaboration details">
+              <Box sx={{ maxHeight: 360, overflowY: 'auto' }}>
+                <MetricsTable
+                  columns={[
+                    { key: 'username', label: 'Person' },
+                    { key: 'reviewSent', label: 'Reviews sent' },
+                    { key: 'reviewReceived', label: 'Reviews received' },
+                    { key: 'commentsSent', label: 'Comments sent' },
+                    { key: 'commentsReceived', label: 'Comments received' },
+                    { key: 'total', label: 'Total' },
+                  ]}
+                  rows={collaborationRows}
+                />
+              </Box>
+            </SectionCard>
+          </Grid>
+        </Grid>
+
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <SectionCard title="Review request summary">
+              {!reviewRequestsSentSummary && !reviewRequestsReceivedSummary ? (
+                <Typography color="text.secondary">No review request metrics available for this scope.</Typography>
+              ) : (
+                <Stack spacing={2}>
+                  {reviewRequestsSentSummary ? (
+                    <Box>
+                      <Typography variant="subtitle2">Sent</Typography>
+                      <Typography>
+                        {reviewRequestsSentSummary.most.username} · {reviewRequestsSentSummary.most.count} requests
+                      </Typography>
+                      <Typography color="text.secondary">
+                        Average {reviewRequestsSentSummary.average?.toFixed(1)} requests/person
+                      </Typography>
+                      <Typography color="text.secondary">
+                        Least: {reviewRequestsSentSummary.least.username} · {reviewRequestsSentSummary.least.count}
+                      </Typography>
+                    </Box>
+                  ) : null}
+                  {reviewRequestsReceivedSummary ? (
+                    <Box>
+                      <Typography variant="subtitle2">Received</Typography>
+                      <Typography>
+                        {reviewRequestsReceivedSummary.most.username} · {reviewRequestsReceivedSummary.most.count} requests
+                      </Typography>
+                      <Typography color="text.secondary">
+                        Average {reviewRequestsReceivedSummary.average?.toFixed(1)} requests/person
+                      </Typography>
+                      <Typography color="text.secondary">
+                        Least: {reviewRequestsReceivedSummary.least.username} · {reviewRequestsReceivedSummary.least.count}
+                      </Typography>
+                    </Box>
+                  ) : null}
+                </Stack>
+              )}
+            </SectionCard>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <SectionCard title="Comment summary">
+              {!commentsSentSummary && !commentsReceivedSummary ? (
+                <Typography color="text.secondary">No comment metrics available for this scope.</Typography>
+              ) : (
+                <Stack spacing={2}>
+                  {commentsSentSummary ? (
+                    <Box>
+                      <Typography variant="subtitle2">Sent</Typography>
+                      <Typography>
+                        {commentsSentSummary.most.username} · {commentsSentSummary.most.count} comments
+                      </Typography>
+                      <Typography color="text.secondary">
+                        Average {commentsSentSummary.average?.toFixed(1)} comments/person
+                      </Typography>
+                      <Typography color="text.secondary">
+                        Least: {commentsSentSummary.least.username} · {commentsSentSummary.least.count}
+                      </Typography>
+                    </Box>
+                  ) : null}
+                  {commentsReceivedSummary ? (
+                    <Box>
+                      <Typography variant="subtitle2">Received</Typography>
+                      <Typography>
+                        {commentsReceivedSummary.most.username} · {commentsReceivedSummary.most.count} comments
+                      </Typography>
+                      <Typography color="text.secondary">
+                        Average {commentsReceivedSummary.average?.toFixed(1)} comments/person
+                      </Typography>
+                      <Typography color="text.secondary">
+                        Least: {commentsReceivedSummary.least.username} · {commentsReceivedSummary.least.count}
+                      </Typography>
+                    </Box>
+                  ) : null}
+                </Stack>
+              )}
+            </SectionCard>
+          </Grid>
+        </Grid>
+
+        <Grid container spacing={3} sx={{ mt: 2 }}>
+          <Grid item xs={12}>
+            <SectionCard title="Raw JSON response">
+              <Button
+                size="small"
+                variant="text"
+                onClick={() => setShowRawJson((current) => !current)}
+              >
+                {showRawJson ? 'Hide raw response' : 'Show raw response'}
+              </Button>
+              <Collapse in={showRawJson}>
+                <Paper sx={{ mt: 2, p: 2, bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.08)', maxHeight: 360, overflowY: 'auto' }}>
+                  <Box component="pre" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'text.primary', fontSize: '0.85rem' }}>
+                    {JSON.stringify(data, null, 2)}
+                  </Box>
+                </Paper>
+              </Collapse>
             </SectionCard>
           </Grid>
         </Grid>
