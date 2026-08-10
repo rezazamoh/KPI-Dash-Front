@@ -15,132 +15,470 @@ interface GraphPoint {
   y: number;
 }
 
-const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const clamp = (
+  value: number,
+  min: number,
+  max: number,
+) => Math.min(max, Math.max(min, value));
 
-const RelationshipGraph: React.FC<RelationshipGraphProps> = ({
+const VIEWBOX_WIDTH = 640;
+const VIEWBOX_HEIGHT = 360;
+const GRAPH_VIEW_MARGIN = 80;
+
+const getGraphBounds = (
+  nodes: GraphNode[],
+  positions: Record<string, GraphPoint>,
+) => {
+  const xs = nodes.map(
+    (node) => positions[node.id]?.x ?? 0,
+  );
+
+  const ys = nodes.map(
+    (node) => positions[node.id]?.y ?? 0,
+  );
+
+  if (!xs.length || !ys.length) {
+    return {
+      minX: -80,
+      maxX: 80,
+      minY: -80,
+      maxY: 80,
+    };
+  }
+
+  return {
+    minX: Math.min(...xs),
+    maxX: Math.max(...xs),
+    minY: Math.min(...ys),
+    maxY: Math.max(...ys),
+  };
+};
+
+const buildForceLayout = (
+  visibleNodes: GraphNode[],
+  visibleEdges: GraphEdge[],
+  centeredId?: string,
+): Record<string, GraphPoint> => {
+  const positions: Record<string, GraphPoint> = {};
+
+  const focusId =
+    centeredId ??
+    visibleNodes[0]?.id ??
+    null;
+
+  if (!visibleNodes.length) {
+    return positions;
+  }
+
+  const nonFocusNodes =
+    visibleNodes.filter(
+      (node) => node.id !== focusId,
+    );
+
+  if (focusId) {
+    positions[focusId] = {
+      x: 0,
+      y: 0,
+    };
+  }
+
+  if (nonFocusNodes.length === 0) {
+    return positions;
+  }
+
+  if (nonFocusNodes.length === 1) {
+    positions[nonFocusNodes[0].id] = {
+      x: 180,
+      y: 0,
+    };
+
+    return positions;
+  }
+
+  if (nonFocusNodes.length === 2) {
+    positions[nonFocusNodes[0].id] = {
+      x: -160,
+      y: 0,
+    };
+
+    positions[nonFocusNodes[1].id] = {
+      x: 160,
+      y: 0,
+    };
+
+    return positions;
+  }
+
+  const desiredRing = Math.min(
+    220,
+    90 + nonFocusNodes.length * 16,
+  );
+
+  nonFocusNodes.forEach(
+    (node, index) => {
+      const angle =
+        (index / nonFocusNodes.length) *
+          Math.PI *
+          2 +
+        (index % 2 === 0
+          ? 0.25
+          : -0.25);
+
+      const radius =
+        desiredRing +
+        (index % 4) * 18 +
+        (node.activity
+          ? Math.min(node.activity, 20) * 0.5
+          : 0);
+
+      positions[node.id] = {
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * radius,
+      };
+    },
+  );
+
+  return positions;
+};
+
+const formatInteractionBreakdown = (
+  edge: GraphEdge,
+  sourceToTarget: boolean,
+) => {
+  const reviewCount = sourceToTarget
+    ? edge.sourceReviewCount
+    : edge.targetReviewCount;
+
+  const commentCount = sourceToTarget
+    ? edge.sourceCommentCount
+    : edge.targetCommentCount;
+
+  const total = sourceToTarget
+    ? edge.sourceInteractions
+    : edge.targetInteractions;
+
+  return {
+    reviewCount,
+    commentCount,
+    total,
+  };
+};
+
+const RelationshipGraph: React.FC<
+  RelationshipGraphProps
+> = ({
   nodes,
   edges,
   title,
   subtitle,
   centerNodeId,
 }) => {
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(centerNodeId ?? nodes[0]?.id ?? null);
-  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [dragging, setDragging] = useState(false);
-  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
-  const [nodePositions, setNodePositions] = useState<Record<string, GraphPoint>>({});
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
-  const nodeDragRef = useRef<{ nodeId: string; pointerWorldX: number; pointerWorldY: number; originX: number; originY: number } | null>(null);
+  const [
+    selectedNodeId,
+    setSelectedNodeId,
+  ] = useState<string | null>(
+    centerNodeId ??
+      nodes[0]?.id ??
+      null,
+  );
+
+  const [
+    hoveredNodeId,
+    setHoveredNodeId,
+  ] = useState<string | null>(null);
+
+  const [
+    hoveredEdgeId,
+    setHoveredEdgeId,
+  ] = useState<string | null>(null);
+
+  const [zoom, setZoom] =
+    useState(1);
+
+  const [pan, setPan] = useState({
+    x: 0,
+    y: 0,
+  });
+
+  const [dragging, setDragging] =
+    useState(false);
+
+  const svgRef =
+    useRef<SVGSVGElement | null>(
+      null,
+    );
+
+  const dragRef =
+    useRef<{
+      startX: number;
+      startY: number;
+      originX: number;
+      originY: number;
+    } | null>(null);
 
   useEffect(() => {
-    if (!nodes.some((node) => node.id === selectedNodeId)) {
-      setSelectedNodeId(centerNodeId ?? nodes[0]?.id ?? null);
+    if (
+      selectedNodeId &&
+      !nodes.some(
+        (node) =>
+          node.id === selectedNodeId,
+      )
+    ) {
+      setSelectedNodeId(
+        centerNodeId ??
+          nodes[0]?.id ??
+          null,
+      );
     }
-  }, [centerNodeId, nodes, selectedNodeId]);
+  }, [
+    centerNodeId,
+    nodes,
+    selectedNodeId,
+  ]);
 
-  const basePositions = useMemo(() => {
-    const result: Record<string, GraphPoint> = {};
-
+  const visibleGraph = useMemo(() => {
     if (!nodes.length) {
-      return result;
-    }
-
-    const centerNode = centerNodeId ? nodes.find((node) => node.id === centerNodeId) : null;
-    const nonCenterNodes = nodes.filter((node) => node.id !== centerNode?.id);
-
-    if (centerNode) {
-      result[centerNode.id] = { x: 0, y: 0 };
-    }
-
-    if (nonCenterNodes.length === 0) {
-      return result;
-    }
-
-    const radius = Math.max(120, 70 + nonCenterNodes.length * 24);
-    nonCenterNodes.forEach((node, index) => {
-      const angle = (index / Math.max(1, nonCenterNodes.length)) * Math.PI * 2;
-      result[node.id] = {
-        x: Math.cos(angle) * radius,
-        y: Math.sin(angle) * radius,
+      return {
+        nodes: [] as GraphNode[],
+        edges: [] as GraphEdge[],
       };
+    }
+
+    const rankedNodes = [...nodes].sort(
+      (a, b) =>
+        b.activity - a.activity,
+    );
+
+    const focusId =
+      centerNodeId ??
+      rankedNodes[0]?.id ??
+      null;
+
+    const edgePool = [...edges].sort(
+      (left, right) =>
+        right.weight - left.weight,
+    );
+
+    const topEdges =
+      edgePool.slice(
+        0,
+        Math.min(24, edgePool.length),
+      );
+
+    const nodeSet =
+      new Set<string>();
+
+    topEdges.forEach((edge) => {
+      nodeSet.add(edge.source);
+      nodeSet.add(edge.target);
     });
 
-    if (!centerNode && nodes.length > 1) {
-      nodes.forEach((node, index) => {
-        const angle = (index / Math.max(1, nodes.length)) * Math.PI * 2;
-        result[node.id] = {
-          x: Math.cos(angle) * radius,
-          y: Math.sin(angle) * radius,
-        };
-      });
+    if (focusId) {
+      nodeSet.add(focusId);
     }
 
-    return result;
-  }, [centerNodeId, nodes]);
+    if (nodeSet.size === 0) {
+      rankedNodes.forEach((node) =>
+        nodeSet.add(node.id),
+      );
+    }
+
+    const isSmallNetwork =
+      rankedNodes.length <= 12;
+
+    const visibleNodes =
+      rankedNodes.filter((node) => {
+        const isStronglyConnected =
+          nodeSet.has(node.id);
+
+        const isCenter =
+          node.id === focusId;
+
+        return (
+          isStronglyConnected ||
+          isCenter ||
+          isSmallNetwork
+        );
+      });
+
+    const finalEdges =
+      topEdges.length
+        ? topEdges
+        : edgePool.slice(
+            0,
+            Math.min(12, edgePool.length),
+          );
+
+    return {
+      nodes: visibleNodes.length
+        ? visibleNodes
+        : rankedNodes,
+      edges: finalEdges,
+    };
+  }, [
+    centerNodeId,
+    edges,
+    nodes,
+  ]);
+
+  const positions = useMemo(() => {
+    const studyNodes =
+      visibleGraph.nodes.length
+        ? visibleGraph.nodes
+        : nodes;
+
+    const studyEdges =
+      visibleGraph.edges.length
+        ? visibleGraph.edges
+        : [];
+
+    if (!studyNodes.length) {
+      return {} as Record<
+        string,
+        GraphPoint
+      >;
+    }
+
+    return buildForceLayout(
+      studyNodes,
+      studyEdges,
+      centerNodeId ??
+        studyNodes[0]?.id,
+    );
+  }, [
+    centerNodeId,
+    nodes,
+    visibleGraph,
+  ]);
+
+  const selectedNode =
+    visibleGraph.nodes.find(
+      (node) =>
+        node.id === selectedNodeId,
+    ) ??
+    nodes[0] ??
+    null;
+
+  const activeNodeId =
+    hoveredNodeId ??
+    selectedNodeId;
+
+  const edgeMaxWeight =
+    Math.max(
+      1,
+      ...visibleGraph.edges.map(
+        (edge) => edge.weight,
+      ),
+    );
+
+  const nodeMaxActivity =
+    Math.max(
+      1,
+      ...visibleGraph.nodes.map(
+        (node) => node.activity,
+      ),
+    );
 
   useEffect(() => {
-    setNodePositions(basePositions);
-  }, [basePositions]);
-
-  useEffect(() => {
-    if (!nodes.length) {
+    if (
+      !visibleGraph.nodes.length
+    ) {
       return;
     }
 
-    setNodePositions((current) => {
-      const next: Record<string, GraphPoint> = { ...current };
-      nodes.forEach((node) => {
-        if (!next[node.id]) {
-          next[node.id] = basePositions[node.id] ?? { x: 0, y: 0 };
-        }
-      });
-      return next;
+    const bounds =
+      getGraphBounds(
+        visibleGraph.nodes,
+        positions,
+      );
+
+    const contentWidth =
+      Math.max(
+        bounds.maxX -
+          bounds.minX,
+        1,
+      );
+
+    const contentHeight =
+      Math.max(
+        bounds.maxY -
+          bounds.minY,
+        1,
+      );
+
+    const fitZoom = clamp(
+      Math.min(
+        (VIEWBOX_WIDTH -
+          GRAPH_VIEW_MARGIN) /
+          contentWidth,
+        (VIEWBOX_HEIGHT -
+          GRAPH_VIEW_MARGIN) /
+          contentHeight,
+      ),
+      0.7,
+      1.5,
+    );
+
+    const centerX =
+      (bounds.minX +
+        bounds.maxX) /
+      2;
+
+    const centerY =
+      (bounds.minY +
+        bounds.maxY) /
+      2;
+
+    setZoom(fitZoom);
+
+    setPan({
+      x: -centerX * fitZoom,
+      y: -centerY * fitZoom,
     });
-  }, [basePositions, nodes]);
+  }, [
+    positions,
+    visibleGraph.nodes,
+  ]);
 
-  const positions = useMemo(() => {
-    const result = new Map<string, GraphPoint>();
-    nodes.forEach((node) => {
-      const position = nodePositions[node.id] ?? basePositions[node.id] ?? { x: 0, y: 0 };
-      result.set(node.id, position);
-    });
-    return result;
-  }, [basePositions, nodePositions, nodes]);
-
-  const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? nodes[0] ?? null;
-  const activityMax = Math.max(1, ...nodes.map((node) => node.activity));
-  const weightMax = Math.max(1, ...edges.map((edge) => edge.weight));
-  const activeNodeId = hoveredNodeId ?? selectedNodeId;
-
-  const screenToWorld = (clientX: number, clientY: number) => {
-    const svg = svgRef.current;
-    if (!svg) {
-      return { x: 0, y: 0 };
+  const handleWheel = (
+    event: React.WheelEvent<SVGSVGElement>,
+  ) => {
+    if (
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.shiftKey
+    ) {
+      return;
     }
 
-    const rect = svg.getBoundingClientRect();
-    return {
-      x: (clientX - rect.left - pan.x) / zoom,
-      y: (clientY - rect.top - pan.y) / zoom,
-    };
-  };
-
-  const handleWheel = (event: React.WheelEvent<SVGSVGElement>) => {
     event.preventDefault();
-    const delta = event.deltaY < 0 ? 0.1 : -0.1;
-    setZoom((prev) => clamp(prev + delta, 0.7, 2.4));
+
+    const delta =
+      event.deltaY < 0
+        ? 0.1
+        : -0.1;
+
+    setZoom((previous) =>
+      clamp(
+        previous + delta,
+        0.7,
+        2.2,
+      ),
+    );
   };
 
-  const handleSvgMouseDown = (event: React.MouseEvent<SVGSVGElement>) => {
-    if (event.target !== event.currentTarget) {
+  const handleSvgMouseDown = (
+    event: React.MouseEvent<SVGSVGElement>,
+  ) => {
+    if (
+      event.target !==
+      event.currentTarget
+    ) {
       return;
     }
 
     setDragging(true);
+
     dragRef.current = {
       startX: event.clientX,
       startY: event.clientY,
@@ -149,14 +487,35 @@ const RelationshipGraph: React.FC<RelationshipGraphProps> = ({
     };
   };
 
-  const handleSvgMouseMove = (event: React.MouseEvent<SVGSVGElement>) => {
-    if (!dragging || !dragRef.current) {
+  const handleSvgMouseMove = (
+    event: React.MouseEvent<SVGSVGElement>,
+  ) => {
+    if (
+      !dragging ||
+      !dragRef.current
+    ) {
       return;
     }
 
-    const deltaX = event.clientX - dragRef.current.startX;
-    const deltaY = event.clientY - dragRef.current.startY;
-    setPan({ x: dragRef.current.originX + deltaX, y: dragRef.current.originY + deltaY });
+    const deltaX =
+      event.clientX -
+      dragRef.current.startX;
+
+    const deltaY =
+      event.clientY -
+      dragRef.current.startY;
+
+    setPan({
+      x:
+        dragRef.current
+          .originX +
+        deltaX,
+
+      y:
+        dragRef.current
+          .originY +
+        deltaY,
+    });
   };
 
   const handleSvgMouseUp = () => {
@@ -164,245 +523,734 @@ const RelationshipGraph: React.FC<RelationshipGraphProps> = ({
     dragRef.current = null;
   };
 
-  const handleNodeMouseDown = (event: React.MouseEvent<SVGGElement>, node: GraphNode) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setSelectedNodeId(node.id);
-    setHoveredNodeId(node.id);
-    setDraggingNodeId(node.id);
-
-    const worldPoint = screenToWorld(event.clientX, event.clientY);
-    const currentPosition = positions.get(node.id) ?? basePositions[node.id] ?? { x: 0, y: 0 };
-
-    nodeDragRef.current = {
-      nodeId: node.id,
-      pointerWorldX: worldPoint.x,
-      pointerWorldY: worldPoint.y,
-      originX: currentPosition.x,
-      originY: currentPosition.y,
-    };
-  };
-
-  const handleNodeMouseMove = (event: React.MouseEvent<SVGGElement>, node: GraphNode) => {
-    if (!nodeDragRef.current || nodeDragRef.current.nodeId !== node.id) {
-      return;
-    }
-
-    const worldPoint = screenToWorld(event.clientX, event.clientY);
-    const dragState = nodeDragRef.current;
-
-    setNodePositions((current) => ({
-      ...current,
-      [node.id]: {
-        x: dragState.originX + (worldPoint.x - dragState.pointerWorldX),
-        y: dragState.originY + (worldPoint.y - dragState.pointerWorldY),
-      },
-    }));
-  };
-
-  const handleNodeMouseUp = () => {
-    setDraggingNodeId(null);
-    nodeDragRef.current = null;
-  };
-
   if (!nodes.length) {
     return (
-      <Paper variant="outlined" sx={{ p: 3, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.02)' }}>
-        <Typography color="text.secondary">No collaboration data available for this selection.</Typography>
+      <Paper
+        variant="outlined"
+        sx={{
+          p: 3,
+          borderRadius: 2,
+          bgcolor:
+            'rgba(255,255,255,0.02)',
+        }}
+      >
+        <Typography color="text.secondary">
+          No collaboration data
+          available for this
+          selection.
+        </Typography>
       </Paper>
     );
   }
 
   return (
-    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.02)', boxShadow: '0 20px 45px rgba(12, 16, 32, 0.28)' }}>
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 2,
+        borderRadius: 2,
+        bgcolor:
+          'rgba(255,255,255,0.02)',
+        boxShadow:
+          '0 20px 45px rgba(12, 16, 32, 0.28)',
+      }}
+    >
       <Stack spacing={2}>
         <Box>
-          <Typography variant="subtitle1">{title}</Typography>
-          {subtitle ? <Typography variant="body2" color="text.secondary">{subtitle}</Typography> : null}
+          <Typography variant="subtitle1">
+            {title}
+          </Typography>
+
+          {subtitle ? (
+            <Typography
+              variant="body2"
+              color="text.secondary"
+            >
+              {subtitle}
+            </Typography>
+          ) : null}
         </Box>
 
-        <Box sx={{ border: '1px solid rgba(255,255,255,0.14)', borderRadius: 2, overflow: 'hidden', bgcolor: 'linear-gradient(135deg, rgba(10,16,36,0.95), rgba(20,28,54,0.9))' }}>
+        <Box
+          sx={{
+            border:
+              '1px solid rgba(255,255,255,0.14)',
+            borderRadius: 2,
+            overflow: 'hidden',
+            bgcolor:
+              'rgba(10,16,36,0.95)',
+          }}
+        >
           <svg
             ref={svgRef}
             width="100%"
             height="360"
             viewBox="-320 -180 640 360"
             onWheel={handleWheel}
-            onMouseDown={handleSvgMouseDown}
-            onMouseMove={handleSvgMouseMove}
-            onMouseUp={handleSvgMouseUp}
-            onMouseLeave={handleSvgMouseUp}
-            style={{ cursor: dragging ? 'grabbing' : 'grab', touchAction: 'none' }}
+            onMouseDown={
+              handleSvgMouseDown
+            }
+            onMouseMove={
+              handleSvgMouseMove
+            }
+            onMouseUp={
+              handleSvgMouseUp
+            }
+            onMouseLeave={
+              handleSvgMouseUp
+            }
+            style={{
+              cursor: dragging
+                ? 'grabbing'
+                : 'grab',
+              touchAction: 'none',
+            }}
           >
-            <style>{`
-              @keyframes graphPulse {
-                0%, 100% { transform: scale(1); }
-                50% { transform: scale(1.06); }
-              }
-              @keyframes graphFloat {
-                0%, 100% { transform: translateY(0px); }
-                50% { transform: translateY(-3px); }
-              }
-            `}</style>
             <defs>
-              <linearGradient id="graphBackground" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="rgba(26,34,62,0.95)" />
-                <stop offset="100%" stopColor="rgba(8,12,24,0.96)" />
+              <linearGradient
+                id="graphBackground"
+                x1="0%"
+                y1="0%"
+                x2="100%"
+                y2="100%"
+              >
+                <stop
+                  offset="0%"
+                  stopColor="rgba(17,23,38,0.95)"
+                />
+                <stop
+                  offset="100%"
+                  stopColor="rgba(9,12,24,0.98)"
+                />
               </linearGradient>
-              <pattern id="graphGrid" width="30" height="30" patternUnits="userSpaceOnUse">
-                <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="1" />
+
+              <pattern
+                id="graphGrid"
+                width="32"
+                height="32"
+                patternUnits="userSpaceOnUse"
+              >
+                <path
+                  d="M 32 0 L 0 0 0 32"
+                  fill="none"
+                  stroke="rgba(255,255,255,0.06)"
+                  strokeWidth="1"
+                />
               </pattern>
-              <linearGradient id="edgeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#7c4dff" />
-                <stop offset="100%" stopColor="#00bcd4" />
+
+              <linearGradient
+                id="edgeGradient"
+                x1="0%"
+                y1="0%"
+                x2="100%"
+                y2="100%"
+              >
+                <stop
+                  offset="0%"
+                  stopColor="#8b5cf6"
+                />
+                <stop
+                  offset="100%"
+                  stopColor="#22d3ee"
+                />
               </linearGradient>
-              <linearGradient id="edgeGradientActive" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#a78bfa" />
-                <stop offset="100%" stopColor="#5eead4" />
+
+              <linearGradient
+                id="edgeGradientActive"
+                x1="0%"
+                y1="0%"
+                x2="100%"
+                y2="100%"
+              >
+                <stop
+                  offset="0%"
+                  stopColor="#fbbf24"
+                />
+                <stop
+                  offset="100%"
+                  stopColor="#34d399"
+                />
               </linearGradient>
-              <filter id="nodeGlow" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
-                <feMerge>
-                  <feMergeNode in="blur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
+
+              <marker
+                id="arrowNormal"
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerWidth="6"
+                markerHeight="6"
+                orient="auto-start-reverse"
+              >
+                <path
+                  d="M 0 0 L 10 5 L 0 10 z"
+                  fill="#67e8f9"
+                />
+              </marker>
+
+              <marker
+                id="arrowActive"
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerWidth="6"
+                markerHeight="6"
+                orient="auto-start-reverse"
+              >
+                <path
+                  d="M 0 0 L 10 5 L 0 10 z"
+                  fill="#fbbf24"
+                />
+              </marker>
             </defs>
-            <rect x="-320" y="-180" width="640" height="360" rx="24" fill="url(#graphBackground)" />
-            <rect x="-320" y="-180" width="640" height="360" rx="24" fill="url(#graphGrid)" />
-            <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
-              {edges.map((edge) => {
-                const source = positions.get(edge.source);
-                const target = positions.get(edge.target);
 
-                if (!source || !target) {
-                  return null;
-                }
+            <rect
+              x="-320"
+              y="-180"
+              width="640"
+              height="360"
+              rx="28"
+              fill="url(#graphBackground)"
+            />
 
-                const strokeWidth = 1 + (edge.totalInteractions / weightMax) * 8;
-                const midX = (source.x + target.x) / 2;
-                const midY = (source.y + target.y) / 2;
-                const isHighlighted = hoveredEdgeId === edge.id || activeNodeId === edge.source || activeNodeId === edge.target || selectedNode?.id === edge.source || selectedNode?.id === edge.target;
+            <rect
+              x="-320"
+              y="-180"
+              width="640"
+              height="360"
+              rx="28"
+              fill="url(#graphGrid)"
+            />
 
-                return (
-                  <g key={edge.id} onMouseEnter={() => setHoveredEdgeId(edge.id)} onMouseLeave={() => setHoveredEdgeId(null)}>
-                    <line
-                      x1={source.x}
-                      y1={source.y}
-                      x2={target.x}
-                      y2={target.y}
-                      stroke="rgba(255,255,255,0.08)"
-                      strokeWidth={strokeWidth + 5}
-                      strokeLinecap="round"
-                    />
-                    <line
-                      x1={source.x}
-                      y1={source.y}
-                      x2={target.x}
-                      y2={target.y}
-                      stroke={isHighlighted ? 'url(#edgeGradientActive)' : 'url(#edgeGradient)'}
-                      strokeWidth={strokeWidth}
-                      strokeLinecap="round"
-                      strokeDasharray={isHighlighted ? '0' : '6 6'}
-                      opacity={isHighlighted ? 1 : 0.7}
-                    >
-                      {!isHighlighted ? <animate attributeName="stroke-dashoffset" values="0;-20" dur="2.2s" repeatCount="indefinite" /> : null}
-                    </line>
-                    <Tooltip
-                      title={
-                        <Stack spacing={0.5}>
-                          <Typography variant="caption" fontWeight={600}>{edge.source} → {edge.target}</Typography>
-                          <Typography variant="caption">Total interactions: {edge.totalInteractions}</Typography>
-                          <Typography variant="caption">Reviews: {edge.reviewCount}</Typography>
-                          <Typography variant="caption">Comments: {edge.commentCount}</Typography>
-                        </Stack>
+            <g
+              transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}
+            >
+              {visibleGraph.edges.map(
+                (edge) => {
+                  const source =
+                    positions[
+                      edge.source
+                    ];
+
+                  const target =
+                    positions[
+                      edge.target
+                    ];
+
+                  if (
+                    !source ||
+                    !target
+                  ) {
+                    return null;
+                  }
+
+                  const isHighlighted =
+                    hoveredEdgeId ===
+                      edge.id ||
+                    activeNodeId ===
+                      edge.source ||
+                    activeNodeId ===
+                      edge.target ||
+                    selectedNode?.id ===
+                      edge.source ||
+                    selectedNode?.id ===
+                      edge.target;
+
+                  const sourceWeight =
+                    edge.sourceInteractions;
+
+                  const targetWeight =
+                    edge.targetInteractions;
+
+                  const maxDirectional =
+                    Math.max(
+                      1,
+                      sourceWeight,
+                      targetWeight,
+                    );
+
+                  const sourceWidth =
+                    1.5 +
+                    (sourceWeight /
+                      maxDirectional) *
+                      6;
+
+                  const targetWidth =
+                    1.5 +
+                    (targetWeight /
+                      maxDirectional) *
+                      6;
+
+                  /*
+                   * Perpendicular offset creates two separate
+                   * curves for the two directions.
+                   */
+                  const dx =
+                    target.x -
+                    source.x;
+
+                  const dy =
+                    target.y -
+                    source.y;
+
+                  const length =
+                    Math.sqrt(
+                      dx * dx +
+                        dy * dy,
+                    ) || 1;
+
+                  const nx =
+                    -dy / length;
+
+                  const ny =
+                    dx / length;
+
+                  const curvature = 20;
+
+                  const controlX =
+                    (source.x +
+                      target.x) /
+                      2 +
+                    nx * curvature;
+
+                  const controlY =
+                    (source.y +
+                      target.y) /
+                      2 +
+                    ny * curvature;
+
+                  const reverseControlX =
+                    (source.x +
+                      target.x) /
+                      2 -
+                    nx * curvature;
+
+                  const reverseControlY =
+                    (source.y +
+                      target.y) /
+                      2 -
+                    ny * curvature;
+
+                  const sourcePath = `
+                    M ${source.x} ${source.y}
+                    Q ${controlX} ${controlY}
+                      ${target.x} ${target.y}
+                  `;
+
+                  const targetPath = `
+                    M ${target.x} ${target.y}
+                    Q ${reverseControlX} ${reverseControlY}
+                      ${source.x} ${source.y}
+                  `;
+
+                  const sourceDetails =
+                    formatInteractionBreakdown(
+                      edge,
+                      true,
+                    );
+
+                  const targetDetails =
+                    formatInteractionBreakdown(
+                      edge,
+                      false,
+                    );
+
+                  const sourceTooltip = (
+                    <Box>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 700,
+                        }}
+                      >
+                        {edge.source} →{' '}
+                        {edge.target}
+                      </Typography>
+
+                      <Typography variant="body2">
+                        {
+                          sourceDetails.total
+                        }{' '}
+                        interactions
+                      </Typography>
+
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                      >
+                        Reviews:{' '}
+                        {
+                          sourceDetails.reviewCount
+                        }{' '}
+                        · Comments:{' '}
+                        {
+                          sourceDetails.commentCount
+                        }
+                      </Typography>
+                    </Box>
+                  );
+
+                  const targetTooltip = (
+                    <Box>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 700,
+                        }}
+                      >
+                        {edge.target} →{' '}
+                        {edge.source}
+                      </Typography>
+
+                      <Typography variant="body2">
+                        {
+                          targetDetails.total
+                        }{' '}
+                        interactions
+                      </Typography>
+
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                      >
+                        Reviews:{' '}
+                        {
+                          targetDetails.reviewCount
+                        }{' '}
+                        · Comments:{' '}
+                        {
+                          targetDetails.commentCount
+                        }
+                      </Typography>
+                    </Box>
+                  );
+
+                  return (
+                    <g
+                      key={edge.id}
+                      onMouseEnter={() =>
+                        setHoveredEdgeId(
+                          edge.id,
+                        )
+                      }
+                      onMouseLeave={() =>
+                        setHoveredEdgeId(
+                          null,
+                        )
                       }
                     >
-                      <circle cx={midX} cy={midY} r={5 + edge.totalInteractions / 4} fill="transparent" />
-                    </Tooltip>
-                  </g>
-                );
-              })}
+                      {/* Direction A → B */}
+                      <path
+                        d={sourcePath}
+                        fill="none"
+                        stroke="transparent"
+                        strokeWidth={20}
+                        strokeLinecap="round"
+                        style={{
+                          cursor: 'pointer',
+                        }}
+                      />
 
-              {nodes.map((node) => {
-                const position = positions.get(node.id);
-                if (!position) {
-                  return null;
-                }
+                      <Tooltip
+                        title={
+                          sourceTooltip
+                        }
+                        placement="top"
+                        arrow
+                      >
+                        <path
+                          d={sourcePath}
+                          fill="none"
+                          stroke={
+                            isHighlighted
+                              ? 'url(#edgeGradientActive)'
+                              : 'url(#edgeGradient)'
+                          }
+                          strokeWidth={
+                            sourceWidth
+                          }
+                          strokeLinecap="round"
+                          markerEnd={
+                            sourceWeight >
+                            0
+                              ? `url(#${
+                                  isHighlighted
+                                    ? 'arrowActive'
+                                    : 'arrowNormal'
+                                })`
+                              : undefined
+                          }
+                          opacity={
+                            sourceWeight >
+                            0
+                              ? isHighlighted
+                                ? 1
+                                : 0.72
+                              : 0
+                          }
+                        />
+                      </Tooltip>
 
-                const radius = 10 + (node.activity / activityMax) * 20;
-                const isSelected = node.id === selectedNode?.id;
-                const isHovered = node.id === hoveredNodeId;
-                const isActive = isSelected || isHovered;
+                      {/* Direction B → A */}
+                      <path
+                        d={targetPath}
+                        fill="none"
+                        stroke="transparent"
+                        strokeWidth={20}
+                        strokeLinecap="round"
+                        style={{
+                          cursor: 'pointer',
+                        }}
+                      />
 
-                return (
-                  <g
-                    key={node.id}
-                    onClick={() => setSelectedNodeId(node.id)}
-                    onMouseEnter={() => setHoveredNodeId(node.id)}
-                    onMouseLeave={() => setHoveredNodeId(null)}
-                    onMouseDown={(event) => handleNodeMouseDown(event, node)}
-                    onMouseMove={(event) => handleNodeMouseMove(event, node)}
-                    onMouseUp={handleNodeMouseUp}
-                    onMouseLeaveCapture={handleNodeMouseUp}
-                  >
-                    <circle
-                      cx={position.x}
-                      cy={position.y}
-                      r={radius + (isSelected ? 5 : 0)}
-                      fill={isSelected ? '#7c4dff' : isHovered ? '#5eead4' : '#00bcd4'}
-                      stroke={isSelected ? '#ffffff' : 'rgba(255,255,255,0.75)'}
-                      strokeWidth={isSelected ? 2.4 : 1.25}
-                      filter="url(#nodeGlow)"
-                      style={{ cursor: draggingNodeId === node.id ? 'grabbing' : 'pointer', animation: isActive ? 'graphPulse 1.9s ease-in-out infinite' : 'graphFloat 2.4s ease-in-out infinite' }}
-                    />
-                    <circle
-                      cx={position.x}
-                      cy={position.y}
-                      r={Math.max(5, radius - 4)}
-                      fill="rgba(255,255,255,0.15)"
-                      stroke="rgba(255,255,255,0.3)"
-                      strokeWidth={1}
-                    />
-                    <text
-                      x={position.x}
-                      y={position.y + radius + 16}
-                      textAnchor="middle"
-                      fill="#f5f7ff"
-                      fontSize="11"
-                      fontWeight={isSelected ? 700 : 500}
-                      style={{ pointerEvents: 'none' }}
+                      <Tooltip
+                        title={
+                          targetTooltip
+                        }
+                        placement="top"
+                        arrow
+                      >
+                        <path
+                          d={targetPath}
+                          fill="none"
+                          stroke={
+                            isHighlighted
+                              ? 'url(#edgeGradientActive)'
+                              : 'url(#edgeGradient)'
+                          }
+                          strokeWidth={
+                            targetWidth
+                          }
+                          strokeLinecap="round"
+                          markerEnd={
+                            targetWeight >
+                            0
+                              ? `url(#${
+                                  isHighlighted
+                                    ? 'arrowActive'
+                                    : 'arrowNormal'
+                                })`
+                              : undefined
+                          }
+                          opacity={
+                            targetWeight >
+                            0
+                              ? isHighlighted
+                                ? 1
+                                : 0.72
+                              : 0
+                          }
+                        />
+                      </Tooltip>
+
+                      {/* Relationship-level hover area */}
+                      <Tooltip
+                        title={
+                          <Box>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontWeight: 700,
+                              }}
+                            >
+                              {edge.source}{' '}
+                              ↔{' '}
+                              {edge.target}
+                            </Typography>
+
+                            <Typography variant="body2">
+                              Total:{' '}
+                              {
+                                edge.totalInteractions
+                              }{' '}
+                              interactions
+                            </Typography>
+
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
+                              {edge.source}{' '}
+                              →{' '}
+                              {edge.target}:{' '}
+                              {
+                                edge.sourceInteractions
+                              }
+                              {' · '}
+                              {edge.target}{' '}
+                              →{' '}
+                              {edge.source}:{' '}
+                              {
+                                edge.targetInteractions
+                              }
+                            </Typography>
+                          </Box>
+                        }
+                        placement="top"
+                        arrow
+                      >
+                        <circle
+                          cx={
+                            (source.x +
+                              target.x) /
+                            2
+                          }
+                          cy={
+                            (source.y +
+                              target.y) /
+                            2
+                          }
+                          r={18}
+                          fill="transparent"
+                          style={{
+                            cursor:
+                              'pointer',
+                          }}
+                        />
+                      </Tooltip>
+                    </g>
+                  );
+                },
+              )}
+
+              {visibleGraph.nodes.map(
+                (node) => {
+                  const position =
+                    positions[node.id];
+
+                  if (!position) {
+                    return null;
+                  }
+
+                  const isSelected =
+                    selectedNodeId ===
+                    node.id;
+
+                  const isHighlighted =
+                    hoveredNodeId ===
+                      node.id ||
+                    activeNodeId ===
+                      node.id;
+
+                  const radius =
+                    node.id ===
+                    centerNodeId
+                      ? 16 +
+                        (node.activity /
+                          nodeMaxActivity) *
+                          16
+                      : 9 +
+                        (node.activity /
+                          nodeMaxActivity) *
+                          13;
+
+                  const fill =
+                    node.id ===
+                    centerNodeId
+                      ? '#8b5cf6'
+                      : isSelected
+                        ? '#fbbf24'
+                        : isHighlighted
+                          ? '#2dd4bf'
+                          : '#7dd3fc';
+
+                  return (
+                    <g
+                      key={node.id}
+                      transform={`translate(${position.x} ${position.y})`}
+                      onMouseEnter={() =>
+                        setHoveredNodeId(
+                          node.id,
+                        )
+                      }
+                      onMouseLeave={() =>
+                        setHoveredNodeId(
+                          null,
+                        )
+                      }
+                      onClick={() =>
+                        setSelectedNodeId(
+                          node.id,
+                        )
+                      }
+                      style={{
+                        cursor:
+                          'pointer',
+                      }}
                     >
-                      {node.label}
-                    </text>
-                  </g>
-                );
-              })}
+                      <circle
+                        r={
+                          radius +
+                          (isSelected
+                            ? 6
+                            : 0)
+                        }
+                        fill={fill}
+                        opacity={
+                          isSelected ||
+                          isHighlighted
+                            ? 1
+                            : 0.82
+                        }
+                        stroke={
+                          node.id ===
+                          centerNodeId
+                            ? '#f8fafc'
+                            : '#e2e8f0'
+                        }
+                        strokeWidth={
+                          node.id ===
+                          centerNodeId
+                            ? 2.5
+                            : 1.4
+                        }
+                      />
+
+                      <circle
+                        r={Math.max(
+                          4,
+                          radius *
+                            0.45,
+                        )}
+                        fill="rgba(15,23,42,0.92)"
+                      />
+
+                      <text
+                        x={radius + 12}
+                        y={4}
+                        fill={
+                          node.id ===
+                          centerNodeId
+                            ? '#f8fafc'
+                            : '#e2e8f0'
+                        }
+                        fontSize={11}
+                        fontWeight={
+                          node.id ===
+                          centerNodeId
+                            ? 700
+                            : 500
+                        }
+                      >
+                        {node.label}
+                      </text>
+
+                      <Tooltip
+                        title={`${node.label} · ${node.activity} activity`}
+                      >
+                        <circle
+                          r={
+                            radius +
+                            18
+                          }
+                          fill="transparent"
+                        />
+                      </Tooltip>
+                    </g>
+                  );
+                },
+              )}
             </g>
           </svg>
-        </Box>
-
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.1fr 0.9fr' }, gap: 2 }}>
-          <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.03)' }}>
-            <Typography variant="subtitle2" gutterBottom>
-              {selectedNode ? `Selected: ${selectedNode.label}` : 'No selection'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Total activity: {selectedNode?.activity ?? 0}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-              Drag nodes to reshape the layout, or drag the canvas to pan. Scroll to zoom.
-            </Typography>
-          </Paper>
-          <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.03)' }}>
-            <Typography variant="subtitle2" gutterBottom>Interaction summary</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Nodes: {nodes.length} · Edges: {edges.length}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Zoom: {zoom.toFixed(2)}x · Pan: {pan.x.toFixed(0)}, {pan.y.toFixed(0)}
-            </Typography>
-          </Paper>
         </Box>
       </Stack>
     </Paper>

@@ -55,6 +55,7 @@ const buildPeopleSummary = (metric: PeopleStats | null | undefined) => {
     total,
     peopleCount: people.length,
     average: metric?.stats?.per_person?.mean ?? null,
+    perChangeAverage: metric?.stats?.per_change?.mean ?? null,
     most,
     least,
   };
@@ -368,22 +369,6 @@ const DeveloperDetailPage: React.FC = () => {
               accent="success.main"
             />
           </Grid>
-          <Grid item xs={12} md={4}>
-            <MetricCard
-              title="Reviews sent"
-              value={reviewRequestsSentSummary?.total ?? 0}
-              subtitle={reviewRequestsSentSummary ? `${reviewRequestsSentSummary.peopleCount} people` : 'No review requests sent'}
-              accent="info.main"
-            />
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <MetricCard
-              title="Comments sent"
-              value={commentsSentSummary?.total ?? 0}
-              subtitle={commentsSentSummary ? `${commentsSentSummary.peopleCount} people` : 'No comments sent'}
-              accent="warning.main"
-            />
-          </Grid>
         </Grid>
 
         <Grid container spacing={3}>
@@ -477,34 +462,15 @@ const DeveloperDetailPage: React.FC = () => {
                         {metrics.reviewer_response_time.mean_hours.toFixed(2)} h
                       </Typography>
                       <Typography color="text.secondary">Average response time across the current selection.</Typography>
-                      <Box sx={{ position: 'relative', height: 12, bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 1 }}>
-                        <Box sx={{ position: 'absolute', left: `${(metrics.reviewer_response_time.min_hours / Math.max(metrics.reviewer_response_time.max_hours, 1)) * 100}%`, width: 2, height: 12, bgcolor: 'success.dark' }} />
-                        <Box sx={{ position: 'absolute', left: `${(metrics.reviewer_response_time.mean_hours / Math.max(metrics.reviewer_response_time.max_hours, 1)) * 100}%`, width: 2, height: 16, bgcolor: 'primary.main' }} />
-                        <Box sx={{ position: 'absolute', left: `${(metrics.reviewer_response_time.max_hours / Math.max(metrics.reviewer_response_time.max_hours, 1)) * 100}%`, width: 2, height: 12, bgcolor: 'error.dark' }} />
-                      </Box>
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                        This bar compares the fastest, average, and slowest reviewer response times in the selected scope.
-                      </Typography>
-                      <Stack direction="row" spacing={2} flexWrap="wrap" sx={{ mt: 0.5 }}>
-                        <Typography variant="caption" color="text.secondary">
-                          <Box component="span" sx={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', bgcolor: 'success.dark', mr: 0.75, verticalAlign: 'middle' }} />
-                          Fastest
+                      <Stack spacing={1}>
+                        <Typography variant="body2" color="text.secondary">
+                          Fastest: {metrics.reviewer_response_time.min_hours.toFixed(2)} h
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          <Box component="span" sx={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', bgcolor: 'primary.main', mr: 0.75, verticalAlign: 'middle' }} />
-                          Average
+                        <Typography variant="body2" color="text.secondary">
+                          Average: {metrics.reviewer_response_time.mean_hours.toFixed(2)} h
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          <Box component="span" sx={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', bgcolor: 'error.dark', mr: 0.75, verticalAlign: 'middle' }} />
-                          Slowest
-                        </Typography>
-                      </Stack>
-                      <Stack direction="row" justifyContent="space-between">
-                        <Typography variant="caption" color="text.secondary">
-                          {metrics.reviewer_response_time.min_hours.toFixed(2)} h fastest
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {metrics.reviewer_response_time.max_hours.toFixed(2)} h slowest
+                        <Typography variant="body2" color="text.secondary">
+                          Slowest: {metrics.reviewer_response_time.max_hours.toFixed(2)} h
                         </Typography>
                       </Stack>
                     </Stack>
@@ -661,51 +627,7 @@ const DeveloperDetailPage: React.FC = () => {
         </Grid>
 
         <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
-            <SectionCard title="Sent / received collaboration">
-              <Stack spacing={2}>
-                <Paper sx={{ p: 2, bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.08)' }}>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Review interaction
-                  </Typography>
-                  <Stack direction="row" spacing={3}>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Sent
-                      </Typography>
-                      <Typography fontWeight={600}>{reviewRequestsSentSummary?.total ?? 0}</Typography>
-                    </Box>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Received
-                      </Typography>
-                      <Typography fontWeight={600}>{reviewRequestsReceivedSummary?.total ?? 0}</Typography>
-                    </Box>
-                  </Stack>
-                </Paper>
-                <Paper sx={{ p: 2, bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.08)' }}>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Comment interaction
-                  </Typography>
-                  <Stack direction="row" spacing={3}>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Sent
-                      </Typography>
-                      <Typography fontWeight={600}>{commentsSentSummary?.total ?? 0}</Typography>
-                    </Box>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Received
-                      </Typography>
-                      <Typography fontWeight={600}>{commentsReceivedSummary?.total ?? 0}</Typography>
-                    </Box>
-                  </Stack>
-                </Paper>
-              </Stack>
-            </SectionCard>
-          </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12}>
             <SectionCard title="Collaboration details">
               <Box sx={{ maxHeight: 360, overflowY: 'auto' }}>
                 <MetricsTable
@@ -727,76 +649,54 @@ const DeveloperDetailPage: React.FC = () => {
         <Grid container spacing={3}>
           <Grid item xs={12} md={6}>
             <SectionCard title="Review request summary">
-              {!reviewRequestsSentSummary && !reviewRequestsReceivedSummary ? (
+              {!reviewRequestsReceivedSummary ? (
                 <Typography color="text.secondary">No review request metrics available for this scope.</Typography>
               ) : (
                 <Stack spacing={2}>
-                  {reviewRequestsSentSummary ? (
-                    <Box>
-                      <Typography variant="subtitle2">Sent</Typography>
-                      <Typography>
-                        {reviewRequestsSentSummary.most.username} · {reviewRequestsSentSummary.most.count} requests
-                      </Typography>
+                  <Box>
+                    <Typography variant="subtitle2">Received</Typography>
+                    <Typography>
+                      {reviewRequestsReceivedSummary.most.username} · {reviewRequestsReceivedSummary.most.count} requests
+                    </Typography>
+                    <Typography color="text.secondary">
+                      Average {reviewRequestsReceivedSummary.average?.toFixed(1)} requests/person
+                    </Typography>
+                    {reviewRequestsReceivedSummary.perChangeAverage !== null && reviewRequestsReceivedSummary.perChangeAverage !== undefined ? (
                       <Typography color="text.secondary">
-                        Average {reviewRequestsSentSummary.average?.toFixed(1)} requests/person
+                        Per change: {reviewRequestsReceivedSummary.perChangeAverage.toFixed(2)} requests/change
                       </Typography>
-                      <Typography color="text.secondary">
-                        Least: {reviewRequestsSentSummary.least.username} · {reviewRequestsSentSummary.least.count}
-                      </Typography>
-                    </Box>
-                  ) : null}
-                  {reviewRequestsReceivedSummary ? (
-                    <Box>
-                      <Typography variant="subtitle2">Received</Typography>
-                      <Typography>
-                        {reviewRequestsReceivedSummary.most.username} · {reviewRequestsReceivedSummary.most.count} requests
-                      </Typography>
-                      <Typography color="text.secondary">
-                        Average {reviewRequestsReceivedSummary.average?.toFixed(1)} requests/person
-                      </Typography>
-                      <Typography color="text.secondary">
-                        Least: {reviewRequestsReceivedSummary.least.username} · {reviewRequestsReceivedSummary.least.count}
-                      </Typography>
-                    </Box>
-                  ) : null}
+                    ) : null}
+                    <Typography color="text.secondary">
+                      Least: {reviewRequestsReceivedSummary.least.username} · {reviewRequestsReceivedSummary.least.count}
+                    </Typography>
+                  </Box>
                 </Stack>
               )}
             </SectionCard>
           </Grid>
           <Grid item xs={12} md={6}>
             <SectionCard title="Comment summary">
-              {!commentsSentSummary && !commentsReceivedSummary ? (
+              {!commentsReceivedSummary ? (
                 <Typography color="text.secondary">No comment metrics available for this scope.</Typography>
               ) : (
                 <Stack spacing={2}>
-                  {commentsSentSummary ? (
-                    <Box>
-                      <Typography variant="subtitle2">Sent</Typography>
-                      <Typography>
-                        {commentsSentSummary.most.username} · {commentsSentSummary.most.count} comments
-                      </Typography>
+                  <Box>
+                    <Typography variant="subtitle2">Received</Typography>
+                    <Typography>
+                      {commentsReceivedSummary.most.username} · {commentsReceivedSummary.most.count} comments
+                    </Typography>
+                    <Typography color="text.secondary">
+                      Average {commentsReceivedSummary.average?.toFixed(1)} comments/person
+                    </Typography>
+                    {commentsReceivedSummary.perChangeAverage !== null && commentsReceivedSummary.perChangeAverage !== undefined ? (
                       <Typography color="text.secondary">
-                        Average {commentsSentSummary.average?.toFixed(1)} comments/person
+                        Per change: {commentsReceivedSummary.perChangeAverage.toFixed(2)} comments/change
                       </Typography>
-                      <Typography color="text.secondary">
-                        Least: {commentsSentSummary.least.username} · {commentsSentSummary.least.count}
-                      </Typography>
-                    </Box>
-                  ) : null}
-                  {commentsReceivedSummary ? (
-                    <Box>
-                      <Typography variant="subtitle2">Received</Typography>
-                      <Typography>
-                        {commentsReceivedSummary.most.username} · {commentsReceivedSummary.most.count} comments
-                      </Typography>
-                      <Typography color="text.secondary">
-                        Average {commentsReceivedSummary.average?.toFixed(1)} comments/person
-                      </Typography>
-                      <Typography color="text.secondary">
-                        Least: {commentsReceivedSummary.least.username} · {commentsReceivedSummary.least.count}
-                      </Typography>
-                    </Box>
-                  ) : null}
+                    ) : null}
+                    <Typography color="text.secondary">
+                      Least: {commentsReceivedSummary.least.username} · {commentsReceivedSummary.least.count}
+                    </Typography>
+                  </Box>
                 </Stack>
               )}
             </SectionCard>

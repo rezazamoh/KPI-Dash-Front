@@ -128,6 +128,34 @@ const ProjectDetailPage: React.FC = () => {
     [data],
   );
 
+  const visibleProjectGraph = useMemo(() => {
+    if (!interactionGraph.nodes.length || !interactionGraph.edges.length) {
+      return { nodes: interactionGraph.nodes, edges: interactionGraph.edges, centerNodeId: null as string | null };
+    }
+
+    const topEdges = [...interactionGraph.edges].sort((a, b) => b.totalInteractions - a.totalInteractions).slice(0, 18);
+    const nodeIds = new Set<string>();
+    topEdges.forEach((edge) => {
+      nodeIds.add(edge.source);
+      nodeIds.add(edge.target);
+    });
+
+    const centerNodeId = [...interactionGraph.nodes].sort((a, b) => b.activity - a.activity)[0]?.id ?? null;
+    const allProjectNodes = interactionGraph.nodes;
+    const visibleNodes = allProjectNodes.filter((node) => {
+      const isStronglyConnected = nodeIds.has(node.id);
+      const isCenter = node.id === centerNodeId;
+      const isSmallNetwork = allProjectNodes.length <= 12;
+      return isStronglyConnected || isCenter || isSmallNetwork;
+    });
+
+    return {
+      nodes: visibleNodes.length ? visibleNodes : allProjectNodes,
+      edges: topEdges,
+      centerNodeId,
+    };
+  }, [interactionGraph]);
+
   const developerMetrics = useMemo(() => data?.developers ?? {}, [data]);
 
   const projectOverview = useMemo(() => {
@@ -456,8 +484,9 @@ const ProjectDetailPage: React.FC = () => {
           <RelationshipGraph
             title="Project collaboration network"
             subtitle="Developers connected by shared review and comment interactions."
-            nodes={interactionGraph.nodes}
-            edges={interactionGraph.edges}
+            nodes={visibleProjectGraph.nodes}
+            edges={visibleProjectGraph.edges}
+            centerNodeId={visibleProjectGraph.centerNodeId ?? undefined}
           />
         </SectionCard>
 

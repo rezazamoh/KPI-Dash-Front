@@ -1,6 +1,7 @@
-import { Box, FormControlLabel, Grid, Paper, Stack, Switch, Typography } from '@mui/material';
-import { useEffect, useState } from 'react';
+import { Box, FormControlLabel, Grid, Link, List, ListItem, Stack, Switch, TextField, Typography } from '@mui/material';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link as RouterLink } from 'react-router-dom';
 import { fetchDevelopers } from '@/api/developers';
 import { fetchProjects } from '@/api/projects';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -13,10 +14,25 @@ const DashboardPage: React.FC = () => {
   const developersQuery = useQuery({ queryKey: ['developers'], queryFn: fetchDevelopers });
   const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
   const [defaultLive, setDefaultLive] = useState(getDefaultLiveValue);
+  const [developerSearch, setDeveloperSearch] = useState('');
+  const [projectSearch, setProjectSearch] = useState('');
 
   useEffect(() => {
     setDefaultLiveValue(defaultLive);
   }, [defaultLive]);
+
+  const developers = developersQuery.data?.developers ?? [];
+  const projects = projectsQuery.data?.projects ?? [];
+
+  const filteredDevelopers = useMemo(
+    () => developers.filter((developer) => developer.toLowerCase().includes(developerSearch.toLowerCase())),
+    [developers, developerSearch]
+  );
+
+  const filteredProjects = useMemo(
+    () => projects.filter((project) => project.toLowerCase().includes(projectSearch.toLowerCase())),
+    [projects, projectSearch]
+  );
 
   if (developersQuery.isLoading || projectsQuery.isLoading) {
     return <LoadingSpinner />;
@@ -25,9 +41,6 @@ const DashboardPage: React.FC = () => {
   if (developersQuery.error || projectsQuery.error) {
     return <ErrorPanel message="Unable to load dashboard data." />;
   }
-
-  const developers = developersQuery.data?.developers ?? [];
-  const projects = projectsQuery.data?.projects ?? [];
 
   return (
     <Box>
@@ -59,12 +72,73 @@ const DashboardPage: React.FC = () => {
           </Stack>
         </SectionCard>
 
-        <SectionCard title="Quick navigation">
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <Paper sx={{ p: 2, width: '100%', bgcolor: 'primary.dark' }}>Developers list</Paper>
-            <Paper sx={{ p: 2, width: '100%', bgcolor: 'primary.dark' }}>Projects list</Paper>
-          </Stack>
-        </SectionCard>
+        <Grid container spacing={3}>
+          <Grid item xs={12} lg={6}>
+            <SectionCard title="Developers">
+              <Stack spacing={2}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Search developers"
+                  value={developerSearch}
+                  onChange={(event) => setDeveloperSearch(event.target.value)}
+                />
+                <Box sx={{ maxHeight: 520, overflowY: 'auto', pr: 1 }}>
+                  <List sx={{ p: 0 }}>
+                    {filteredDevelopers.map((developer) => (
+                      <ListItem
+                        key={developer}
+                        disableGutters
+                        sx={{
+                          borderBottom: '1px solid rgba(255,255,255,0.08)',
+                          py: 1.5,
+                          '&:last-child': { borderBottom: 'none' },
+                        }}
+                      >
+                        <Link component={RouterLink} to={`/developers/${encodeURIComponent(developer)}`} underline="hover" sx={{ fontSize: '1rem', fontWeight: 500 }}>
+                          {developer}
+                        </Link>
+                      </ListItem>
+                    ))}
+                  </List>
+                </Box>
+              </Stack>
+            </SectionCard>
+          </Grid>
+
+          <Grid item xs={12} lg={6}>
+            <SectionCard title="Projects">
+              <Stack spacing={2}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Search projects"
+                  value={projectSearch}
+                  onChange={(event) => setProjectSearch(event.target.value)}
+                />
+                <Box sx={{ maxHeight: 520, overflowY: 'auto', pr: 1 }}>
+                  <List sx={{ p: 0 }}>
+                    {filteredProjects.map((project) => (
+                      <ListItem
+                        key={project}
+                        disableGutters
+                        sx={{
+                          borderBottom: '1px solid rgba(255,255,255,0.08)',
+                          py: 1.5,
+                          '&:last-child': { borderBottom: 'none' },
+                        }}
+                      >
+                        <Link component={RouterLink} to={`/projects/${encodeURIComponent(project)}`} underline="hover" sx={{ fontSize: '1rem', fontWeight: 500 }}>
+                          {project}
+                        </Link>
+                      </ListItem>
+                    ))}
+                  </List>
+                </Box>
+              </Stack>
+            </SectionCard>
+          </Grid>
+        </Grid>
 
         <SectionCard title="Recent activity">
           <Typography color="text.secondary">Recent activity is provided by the backend live dataset.</Typography>

@@ -1,4 +1,4 @@
-import { Box, Card, CardContent, Grid, Link, Stack, TextField, Typography } from '@mui/material';
+import { Box, Card, CardContent, Grid, Link, List, ListItem, Stack, TextField, Typography } from '@mui/material';
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link as RouterLink } from 'react-router-dom';
@@ -64,25 +64,28 @@ const DevelopersPage: React.FC = () => {
         </Grid>
 
         <SectionCard title="Developer overview">
-          <Grid container spacing={2}>
+          <List sx={{ p: 0 }}>
             {filteredDevelopers.map((developer) => (
-              <Grid key={developer} item xs={12} sm={6} md={4}>
-                <Card sx={{ bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.08)', height: '100%' }}>
-                  <CardContent>
-                    <Typography variant="subtitle1" gutterBottom>
-                      {developer}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      Open the detailed dashboard to inspect repositories, topics, review activity, and build outcomes.
-                    </Typography>
-                    <Link component={RouterLink} to={`/developers/${encodeURIComponent(developer)}`} underline="hover">
-                      Open dashboard
-                    </Link>
-                  </CardContent>
-                </Card>
-              </Grid>
+              <ListItem
+                key={developer}
+                disableGutters
+                sx={{
+                  borderBottom: '1px solid rgba(255,255,255,0.08)',
+                  py: 1.5,
+                  '&:last-child': { borderBottom: 'none' },
+                }}
+              >
+                <Link
+                  component={RouterLink}
+                  to={`/developers/${encodeURIComponent(developer)}`}
+                  underline="hover"
+                  sx={{ fontSize: '1rem', fontWeight: 500 }}
+                >
+                  {developer}
+                </Link>
+              </ListItem>
             ))}
-          </Grid>
+          </List>
         </SectionCard>
       </Stack>
     </Box>
