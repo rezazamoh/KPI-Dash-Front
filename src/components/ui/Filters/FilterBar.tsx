@@ -17,6 +17,7 @@ interface FilterBarProps {
   topicDisabled?: boolean;
   showRepositorySelector?: boolean;
   showTopicSelector?: boolean;
+  showDeveloperSelector?: boolean;
   developerMultiple?: boolean;
   draftDeveloper: string | string[] | null;
   draftRepositories: string[];
@@ -48,6 +49,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
   topicDisabled = false,
   showRepositorySelector = true,
   showTopicSelector = true,
+  showDeveloperSelector = true,
   developerMultiple = false,
   draftDeveloper,
   draftRepositories,
@@ -72,12 +74,14 @@ const FilterBar: React.FC<FilterBarProps> = ({
       flexWrap="wrap"
       alignItems={{ xs: 'stretch', md: 'center' }}
     >
-      <DeveloperSelector
-        developers={developerOptions}
-        value={draftDeveloper ?? selectedDeveloper}
-        onChange={onDeveloperChange}
-        multiple={developerMultiple}
-      />
+      {showDeveloperSelector ? (
+        <DeveloperSelector
+          developers={developerOptions}
+          value={draftDeveloper ?? selectedDeveloper}
+          onChange={onDeveloperChange}
+          multiple={developerMultiple}
+        />
+      ) : null}
       {showRepositorySelector ? (
         <RepositorySelector repositories={repositoryOptions} value={draftRepositories} onChange={onRepositoryChange} />
       ) : null}

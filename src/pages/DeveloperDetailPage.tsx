@@ -2,7 +2,7 @@ import { Alert, Box, Button, Chip, Collapse, Divider, Grid, Link, Paper, Stack, 
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useParams, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { fetchDeveloper, fetchDeveloperTopics, fetchDevelopers } from '@/api/developers';
+import { fetchDeveloper, fetchDeveloperTopics } from '@/api/developers';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorPanel from '@/components/ui/ErrorPanel';
 import MetricCard from '@/components/ui/MetricCard';
@@ -63,8 +63,7 @@ const buildPeopleSummary = (metric: PeopleStats | null | undefined) => {
 
 const DeveloperDetailPage: React.FC = () => {
   const { username } = useParams<{ username: string }>();
-  const developersQuery = useQuery({ queryKey: ['developers'], queryFn: fetchDevelopers });
-  const [selectedDeveloper, setSelectedDeveloper] = useState<string | null>(username ?? null);
+  const developerName = username ?? null;
   const location = useLocation();
 
   const repoFromQuery = useMemo(() => {
@@ -82,7 +81,6 @@ const DeveloperDetailPage: React.FC = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [live, setLive] = useState(getDefaultLiveValue);
-  const [draftDeveloper, setDraftDeveloper] = useState<string | null>(username ?? null);
   const [draftRepositories, setDraftRepositories] = useState<string[]>(repoFromQuery);
   const [draftTopics, setDraftTopics] = useState<string[]>([]);
   const [draftStartDate, setDraftStartDate] = useState('');
@@ -94,15 +92,14 @@ const DeveloperDetailPage: React.FC = () => {
   const [showRawJson, setShowRawJson] = useState(false);
 
   useEffect(() => {
-    setDraftDeveloper(selectedDeveloper);
     setDraftRepositories(selectedRepositories);
     setDraftTopics(selectedTopics);
     setDraftStartDate(startDate);
     setDraftEndDate(endDate);
     setDraftLive(live);
-  }, [selectedDeveloper, selectedRepositories, selectedTopics, startDate, endDate, live]);
+  }, [selectedRepositories, selectedTopics, startDate, endDate, live]);
 
-  const developerName = selectedDeveloper ?? username;
+  // developerName is sourced from the route param `username`
 
   const detailQuery = useQuery<DeveloperDetailResponse | undefined>({
     queryKey: ['developer-detail', developerName, selectedRepositories, selectedTopics, startDate, endDate, live],
@@ -230,11 +227,18 @@ const DeveloperDetailPage: React.FC = () => {
     NEEDS_REVIEW: 'secondary.main',
   };
 
-  if (developersQuery.isLoading || detailQuery.isLoading) {
+  const filterSummary = useMemo(() => {
+    const activeDevelopers = selectedRepositories.length ? `${selectedRepositories.length} selected` : 'All Repositories';
+    const activeTopics = selectedTopics.length ? `${selectedTopics.length} selected` : 'All topics';
+    const activeDateRange = startDate || endDate ? `${formatDateLabel(startDate)} – ${formatDateLabel(endDate)}` : 'Any time';
+    return { activeDevelopers, activeTopics, activeDateRange };
+  }, [selectedRepositories, selectedTopics, startDate, endDate]);
+
+  if (detailQuery.isLoading) {
     return <LoadingSpinner />;
   }
 
-  if (developersQuery.error || detailQuery.error) {
+  if (detailQuery.error) {
     return <ErrorPanel message="Unable to load developer details." />;
   }
 
@@ -277,33 +281,31 @@ const DeveloperDetailPage: React.FC = () => {
       <Stack spacing={3}>
         <Stack spacing={1}>
           <Typography variant="h4">{developerTitle}</Typography>
-          <Typography variant="subtitle1">Developer Performance</Typography>
-          <Typography color="text.secondary">
-            {activeRepoLabel} · {activeTopicLabel} · {activeDateLabel}
-          </Typography>
+          <Typography color="text.secondary">Developer Performance</Typography>
+        </Stack>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center" flexWrap="wrap">
+          <Chip label={filterSummary.activeDevelopers} />
+          <Chip label={filterSummary.activeTopics} />
+          <Chip label={filterSummary.activeDateRange} />
         </Stack>
         <FilterBar
-          developerOptions={developersQuery.data?.developers ?? []}
+          showDeveloperSelector={false}
+          selectedDeveloper={developerName}
+          draftDeveloper={null}
           repositoryOptions={repositoryOptions}
           topicOptions={topicOptions}
-          selectedDeveloper={developerName}
           selectedRepositories={selectedRepositories}
           selectedTopics={selectedTopics}
           startDate={startDate}
           endDate={endDate}
           live={live}
           topicDisabled={draftRepositories.length === 0}
-          draftDeveloper={draftDeveloper}
           draftRepositories={draftRepositories}
           draftTopics={draftTopics}
           draftStartDate={draftStartDate}
           draftEndDate={draftEndDate}
           draftLive={draftLive}
-          onDeveloperChange={(value) => {
-            setDraftDeveloper(value);
-            setDraftRepositories([]);
-            setDraftTopics([]);
-          }}
+          onDeveloperChange={() => {}}
           onRepositoryChange={(value) => {
             setDraftRepositories(value);
             setDraftTopics([]);
@@ -313,7 +315,6 @@ const DeveloperDetailPage: React.FC = () => {
           onEndDateChange={setDraftEndDate}
           onLiveChange={setDraftLive}
           onApplyFilters={() => {
-            setSelectedDeveloper(draftDeveloper);
             setSelectedRepositories(draftRepositories);
             setSelectedTopics(draftTopics);
             setStartDate(draftStartDate);
@@ -322,13 +323,11 @@ const DeveloperDetailPage: React.FC = () => {
           }}
           onTopicMenuOpenChange={setTopicMenuOpen}
           onResetFilters={() => {
-            setDraftDeveloper(username ?? null);
             setDraftRepositories([]);
             setDraftTopics([]);
             setDraftStartDate('');
             setDraftEndDate('');
             setDraftLive(getDefaultLiveValue());
-            setSelectedDeveloper(username ?? null);
             setSelectedRepositories([]);
             setSelectedTopics([]);
             setStartDate('');
@@ -697,22 +696,20 @@ const DeveloperDetailPage: React.FC = () => {
 
         <Grid container spacing={3} sx={{ mt: 2 }}>
           <Grid item xs={12}>
-            <SectionCard title="Raw JSON response">
-              <Button
-                size="small"
-                variant="text"
-                onClick={() => setShowRawJson((current) => !current)}
-              >
-                {showRawJson ? 'Hide raw response' : 'Show raw response'}
-              </Button>
-              <Collapse in={showRawJson}>
-                <Paper sx={{ mt: 2, p: 2, bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.08)', maxHeight: 360, overflowY: 'auto' }}>
-                  <Box component="pre" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'text.primary', fontSize: '0.85rem' }}>
-                    {JSON.stringify(data, null, 2)}
-                  </Box>
-                </Paper>
-              </Collapse>
-            </SectionCard>
+            <Button
+              size="small"
+              variant="text"
+              onClick={() => setShowRawJson((current) => !current)}
+            >
+              {showRawJson ? 'Hide raw response' : 'Show raw response'}
+            </Button>
+            <Collapse in={showRawJson}>
+              <Paper sx={{ mt: 2, p: 2, bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.08)', maxHeight: 360, overflowY: 'auto' }}>
+                <Box component="pre" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'text.primary', fontSize: '0.85rem' }}>
+                  {JSON.stringify(data, null, 2)}
+                </Box>
+              </Paper>
+            </Collapse>
           </Grid>
         </Grid>
       </Stack>

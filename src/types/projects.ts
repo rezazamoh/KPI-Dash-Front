@@ -75,5 +75,7 @@ export interface ProjectDetailResponse {
     end_date: string | null;
     live: boolean;
   };
-  developers: ProjectDeveloperMetrics;
+  developers: string[];
+  topics: string[];
+  developer_metrics: ProjectDeveloperMetrics;
 }

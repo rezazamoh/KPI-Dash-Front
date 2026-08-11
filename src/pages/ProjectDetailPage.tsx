@@ -2,6 +2,8 @@ import {
   Box,
   Chip,
   Divider,
+  Button,
+  Collapse,
   Grid,
   Link,
   Paper,
@@ -17,10 +19,9 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { fetchProject, fetchProjectDevelopers, fetchProjectTopics } from '@/api/projects';
+import { fetchProject } from '@/api/projects';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorPanel from '@/components/ui/ErrorPanel';
-import MetricCard from '@/components/ui/MetricCard';
 import SectionCard from '@/components/ui/SectionCard';
 import FilterBar from '@/components/ui/Filters/FilterBar';
 import ChartCard from '@/components/ui/ChartCard';
@@ -62,6 +63,7 @@ const ProjectDetailPage: React.FC = () => {
   const [draftEndDate, setDraftEndDate] = useState('');
   const [draftLive, setDraftLive] = useState(getDefaultLiveValue);
   const [topicMenuOpen, setTopicMenuOpen] = useState(false);
+  const [showRawJson, setShowRawJson] = useState(false);
 
   const projectName = project ?? '';
 
@@ -98,30 +100,9 @@ const ProjectDetailPage: React.FC = () => {
     enabled: Boolean(projectName),
   });
 
-  const developersQuery = useQuery<string[]>({
-    queryKey: ['project-developers', projectName],
-    queryFn: async () => {
-      if (!projectName) return [];
-      return fetchProjectDevelopers(projectName);
-    },
-    enabled: Boolean(projectName),
-  });
-
-  const topicsQuery = useQuery<string[]>({
-    queryKey: ['project-topics', projectName, draftDevelopers],
-    queryFn: async () => {
-      if (!projectName || draftDevelopers.length === 0) {
-        return [];
-      }
-      return fetchProjectTopics(projectName, draftDevelopers);
-    },
-    enabled: Boolean(projectName) && draftDevelopers.length > 0 && topicMenuOpen,
-  });
-
-  const developerOptions = developersQuery.data ?? [];
-  const topicOptions = topicsQuery.data ?? [];
-
   const data = detailQuery.data;
+  const developerOptions = data?.developers ?? [];
+  const topicOptions = data?.topics ?? [];
 
   const interactionGraph = useMemo(
     () => (data ? buildProjectRelationshipGraph(data) : { nodes: [], edges: [] }),
@@ -156,7 +137,7 @@ const ProjectDetailPage: React.FC = () => {
     };
   }, [interactionGraph]);
 
-  const developerMetrics = useMemo(() => data?.developers ?? {}, [data]);
+  const developerMetrics = useMemo(() => data?.developer_metrics ?? {}, [data]);
 
   const projectOverview = useMemo(() => {
     const statusTotals = new Map<string, number>();
@@ -227,8 +208,7 @@ const ProjectDetailPage: React.FC = () => {
 
     const topCollaborators = Array.from(collaboratorTotals.entries())
       .map(([username, totals]) => ({ username, ...totals }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 8);
+      .sort((a, b) => b.total - a.total);
 
     return {
       totalDevelopers: Object.keys(developerMetrics).length,
@@ -279,7 +259,7 @@ const ProjectDetailPage: React.FC = () => {
     return { activeDevelopers, activeTopics, activeDateRange };
   }, [selectedDevelopers, selectedTopics, startDate, endDate]);
 
-  if (detailQuery.isLoading || developersQuery.isLoading) {
+  if (detailQuery.isLoading) {
     return <LoadingSpinner />;
   }
 
@@ -311,20 +291,15 @@ const ProjectDetailPage: React.FC = () => {
     <Box>
       <Stack spacing={3}>
         <Stack spacing={1}>
-          <Typography variant="h4">Project details: {projectName}</Typography>
-          <Typography color="text.secondary">
-            Explore change activity, repository status, and developer collaboration for this project.
-          </Typography>
+          <Typography variant="h4">{projectName}</Typography>
+          <Typography color="text.secondary">Explore change activity, repository status, and developer collaboration for this project.</Typography>
         </Stack>
 
-        <SectionCard title="Active filters">
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center" flexWrap="wrap">
             <Chip label={filterSummary.activeDevelopers} />
             <Chip label={filterSummary.activeTopics} />
             <Chip label={filterSummary.activeDateRange} />
-            <Chip label={live ? 'Live data' : 'Cached data'} color={live ? 'success' : 'default'} />
           </Stack>
-        </SectionCard>
 
         <FilterBar
           developerOptions={developerOptions}
@@ -361,24 +336,6 @@ const ProjectDetailPage: React.FC = () => {
           onTopicMenuOpenChange={setTopicMenuOpen}
         />
 
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={4}>
-            <MetricCard
-              title="Developers in view"
-              value={projectOverview.totalDevelopers}
-              subtitle={selectedDevelopers.length ? `${selectedDevelopers.length} selected` : 'All developers'}
-              accent="primary.main"
-            />
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <MetricCard title="Total changes" value={projectOverview.totalChanges} accent="secondary.main" />
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <MetricCard title="Repositories touched" value={projectOverview.repositoryCount} accent="success.main" />
-          </Grid>
-          {/* Live mode indicator removed — toggle in FilterBar is sufficient. */}
-        </Grid>
-
         <SectionCard title="Project status overview">
           <Grid container spacing={2}>
             {projectOverview.topStatuses.map((statusItem) => (
@@ -392,46 +349,6 @@ const ProjectDetailPage: React.FC = () => {
               </Grid>
             ))}
           </Grid>
-        </SectionCard>
-
-        <SectionCard title="Repository activity">
-          <Box sx={{ maxHeight: 420, overflowY: 'auto', px: 1, py: 0.5 }}>
-            {projectOverview.repositoryDetails.length ? (
-              <Stack spacing={2}>
-                {projectOverview.repositoryDetails.slice(0, 12).map((repoItem) => (
-                  <Paper
-                    key={repoItem.repo}
-                    sx={{
-                      p: 2,
-                      display: 'grid',
-                      gap: 1,
-                      gridTemplateColumns: '1fr auto',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Box>
-                      <Typography variant="subtitle2" color="text.secondary">
-                        {repoItem.repo}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {repoItem.developerCount} contributors • {repoItem.total} changes
-                      </Typography>
-                    </Box>
-                    <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="wrap" sx={{ minWidth: 180 }}>
-                      {Object.entries(repoItem.statuses)
-                        .sort((a, b) => b[1] - a[1])
-                        .slice(0, 3)
-                        .map(([status, count]) => (
-                          <Chip key={status} label={`${status}: ${count}`} size="small" />
-                        ))}
-                    </Stack>
-                  </Paper>
-                ))}
-              </Stack>
-            ) : (
-              <Typography color="text.secondary">No repository activity is available for the current selection.</Typography>
-            )}
-          </Box>
         </SectionCard>
 
         <SectionCard title="Developer contribution snapshot">
@@ -494,7 +411,7 @@ const ProjectDetailPage: React.FC = () => {
         </SectionCard>
 
         {projectOverview.topCollaborators.length > 0 ? (
-          <SectionCard title="Top reviewer/commenter relationships">
+          <SectionCard title="reviewer/commenter relationships">
             <TableContainer component={Paper} sx={{ bgcolor: 'background.paper' }}>
               <Table size="small">
                 <TableHead>
@@ -520,6 +437,24 @@ const ProjectDetailPage: React.FC = () => {
           </SectionCard>
         ) : null}
       </Stack>
+        <Grid container spacing={3} sx={{ mt: 2 }}>
+          <Grid item xs={12}>
+            <Button
+              size="small"
+              variant="text"
+              onClick={() => setShowRawJson((current) => !current)}
+            >
+              {showRawJson ? 'Hide raw response' : 'Show raw response'}
+            </Button>
+            <Collapse in={showRawJson}>
+              <Paper sx={{ mt: 2, p: 2, bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.08)', maxHeight: 360, overflowY: 'auto' }}>
+                <Box component="pre" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'text.primary', fontSize: '0.85rem' }}>
+                  {JSON.stringify(data, null, 2)}
+                </Box>
+              </Paper>
+            </Collapse>
+          </Grid>
+        </Grid>
     </Box>
   );
 };

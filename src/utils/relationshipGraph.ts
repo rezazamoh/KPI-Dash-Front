@@ -253,12 +253,13 @@ export const buildDeveloperRelationshipGraph = (
 export const buildProjectRelationshipGraph = (
   data: ProjectDetailResponse,
 ): { nodes: GraphNode[]; edges: GraphEdge[] } => {
-  const developerNames = Object.keys(data.developers).sort();
+  const developerMetrics = data.developer_metrics ?? {};
+  const developerNames = Object.keys(developerMetrics).sort();
 
   const allPeople = new Set<string>(developerNames);
 
   developerNames.forEach((developerName) => {
-    const metrics = data.developers[developerName];
+    const metrics = developerMetrics[developerName];
 
     [
       metrics.review_requests_sent,
@@ -285,7 +286,7 @@ export const buildProjectRelationshipGraph = (
   const edgeMap = new Map<string, GraphEdge>();
 
   developerNames.forEach((developerName) => {
-    const metrics = data.developers[developerName];
+    const metrics = developerMetrics[developerName];
 
     const peers = new Set<string>();
 
