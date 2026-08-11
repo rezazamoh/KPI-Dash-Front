@@ -3,6 +3,7 @@ import {
   Checkbox,
   Divider,
   List,
+  Link,
   ListItemButton,
   ListItemIcon,
   ListItemText,
@@ -11,6 +12,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import { Link as RouterLink } from 'react-router-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { GraphEdge, GraphNode } from '@/utils/relationshipGraph';
 
@@ -20,6 +22,7 @@ interface RelationshipGraphProps {
   title: string;
   subtitle?: string;
   centerNodeId?: string;
+  nodeLinkHref?: (node: GraphNode) => string;
 }
 
 interface GraphPoint {
@@ -184,6 +187,7 @@ const RelationshipGraph: React.FC<
   title,
   subtitle,
   centerNodeId,
+  nodeLinkHref,
 }) => {
   const [
     selectedNodeId,
@@ -756,7 +760,27 @@ const RelationshipGraph: React.FC<
                         />
                       </ListItemIcon>
                       <ListItemText
-                        primary={node.label}
+                        primary={
+                          nodeLinkHref ? (
+                            <Link
+                              component={RouterLink}
+                              to={nodeLinkHref(node)}
+                              underline="hover"
+                              color="inherit"
+                              sx={{
+                                display: 'inline-block',
+                                width: '100%',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {node.label}
+                            </Link>
+                          ) : (
+                            node.label
+                          )
+                        }
                         secondary={`Activity: ${node.activity}`}
                         primaryTypographyProps={{
                           variant: 'body2',

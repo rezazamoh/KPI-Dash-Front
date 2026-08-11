@@ -248,29 +248,7 @@ const DeveloperDetailPage: React.FC = () => {
 
   const developerTitle = formatDeveloperTitle(data.username);
 
-  const activeRepoLabel = data.filters.repo?.length
-    ? data.filters.repo.length === 1
-      ? data.filters.repo[0]
-      : `${data.filters.repo.length} repositories`
-    : 'All projects';
-  const activeTopicLabel = data.filters.topic?.length
-    ? data.filters.topic.length === 1
-      ? data.filters.topic[0]
-      : `${data.filters.topic.length} topics`
-    : 'All topics';
-  const activeDateLabel = data.filters.start_date || data.filters.end_date
-    ? `${formatDateLabel(data.filters.start_date) ?? 'Any date'} – ${formatDateLabel(data.filters.end_date) ?? 'Any date'}`
-    : 'All dates';
-  const isCached = data.live === false;
-
-  const reviewRequestsReceived = metrics.review_requests_received?.people ?? [];
-  const reviewRequestsSent = metrics.review_requests_sent?.people ?? [];
-  const commentsReceived = metrics.comments_received?.people ?? [];
-  const commentsSent = metrics.comments_sent?.people ?? [];
-
-  const reviewRequestsSentSummary = buildPeopleSummary(metrics.review_requests_sent);
   const reviewRequestsReceivedSummary = buildPeopleSummary(metrics.review_requests_received);
-  const commentsSentSummary = buildPeopleSummary(metrics.comments_sent);
   const commentsReceivedSummary = buildPeopleSummary(metrics.comments_received);
 
   const hasAnyCollaboration = collaborationRows.length > 0;

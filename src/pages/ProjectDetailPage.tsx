@@ -357,11 +357,11 @@ const ProjectDetailPage: React.FC = () => {
               <TableHead>
                 <TableRow>
                   <TableCell>Developer</TableCell>
-                  <TableCell align="right">Changes</TableCell>
-                  <TableCell align="right">Avg patchsets</TableCell>
-                  <TableCell align="right">Failure rate</TableCell>
-                  <TableCell align="right">Lead time</TableCell>
-                  <TableCell align="right">Interactions</TableCell>
+                  <TableCell align="left">Changes</TableCell>
+                  <TableCell align="left">Avg patchsets</TableCell>
+                  <TableCell align="left">Failure rate</TableCell>
+                  <TableCell align="left">Lead time</TableCell>
+                  <TableCell align="left">Interactions (sent+recieved)</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -376,11 +376,11 @@ const ProjectDetailPage: React.FC = () => {
                         {row.username}
                       </Link>
                     </TableCell>
-                    <TableCell align="right">{row.changeCount}</TableCell>
-                    <TableCell align="right">{row.patchsets}</TableCell>
-                    <TableCell align="right">{row.failureRate}</TableCell>
-                    <TableCell align="right">{row.leadTime}</TableCell>
-                    <TableCell align="right">{row.interactions}</TableCell>
+                    <TableCell align="left">{row.changeCount}</TableCell>
+                    <TableCell align="left">{row.patchsets}</TableCell>
+                    <TableCell align="left">{row.failureRate}</TableCell>
+                    <TableCell align="left">{row.leadTime}</TableCell>
+                    <TableCell align="left">{row.interactions}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -390,7 +390,7 @@ const ProjectDetailPage: React.FC = () => {
 
         <ChartCard title="Changes by developer">
           <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={developerChartData} margin={{ left: 0, right: 0, top: 20, bottom: 20 }}>
+            <BarChart data={developerChartData} margin={{ left: 0, left: 0, top: 20, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
               <XAxis dataKey="name" stroke="#cfd8fc" />
               <YAxis stroke="#cfd8fc" />
@@ -407,6 +407,7 @@ const ProjectDetailPage: React.FC = () => {
             nodes={visibleProjectGraph.nodes}
             edges={visibleProjectGraph.edges}
             centerNodeId={visibleProjectGraph.centerNodeId ?? undefined}
+            nodeLinkHref={(node) => `/developers/${encodeURIComponent(node.id)}?repo=${encodeURIComponent(projectName)}`}
           />
         </SectionCard>
 
@@ -417,18 +418,18 @@ const ProjectDetailPage: React.FC = () => {
                 <TableHead>
                   <TableRow>
                     <TableCell>Person</TableCell>
-                    <TableCell align="right">Reviews</TableCell>
-                    <TableCell align="right">Comments</TableCell>
-                    <TableCell align="right">Total</TableCell>
+                    <TableCell align="left">Reviews</TableCell>
+                    <TableCell align="left">Comments</TableCell>
+                    <TableCell align="left">Total</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {projectOverview.topCollaborators.map((item) => (
                     <TableRow key={item.username} hover>
                       <TableCell>{item.username}</TableCell>
-                      <TableCell align="right">{item.reviews}</TableCell>
-                      <TableCell align="right">{item.comments}</TableCell>
-                      <TableCell align="right">{item.total}</TableCell>
+                      <TableCell align="left">{item.reviews}</TableCell>
+                      <TableCell align="left">{item.comments}</TableCell>
+                      <TableCell align="left">{item.total}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
