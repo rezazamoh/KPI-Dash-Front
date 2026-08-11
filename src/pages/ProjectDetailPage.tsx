@@ -362,22 +362,21 @@ const ProjectDetailPage: React.FC = () => {
         />
 
         <Grid container spacing={3}>
-          <Grid item xs={12} md={3}>
+          <Grid item xs={12} md={4}>
             <MetricCard
               title="Developers in view"
               value={projectOverview.totalDevelopers}
               subtitle={selectedDevelopers.length ? `${selectedDevelopers.length} selected` : 'All developers'}
+              accent="primary.main"
             />
           </Grid>
-          <Grid item xs={12} md={3}>
-            <MetricCard title="Total changes" value={projectOverview.totalChanges} />
+          <Grid item xs={12} md={4}>
+            <MetricCard title="Total changes" value={projectOverview.totalChanges} accent="secondary.main" />
           </Grid>
-          <Grid item xs={12} md={3}>
-            <MetricCard title="Repositories touched" value={projectOverview.repositoryCount} />
+          <Grid item xs={12} md={4}>
+            <MetricCard title="Repositories touched" value={projectOverview.repositoryCount} accent="success.main" />
           </Grid>
-          <Grid item xs={12} md={3}>
-            <MetricCard title="Live mode" value={live ? 'Enabled' : 'Disabled'} />
-          </Grid>
+          {/* Live mode indicator removed — toggle in FilterBar is sufficient. */}
         </Grid>
 
         <SectionCard title="Project status overview">
@@ -452,7 +451,11 @@ const ProjectDetailPage: React.FC = () => {
                 {developerRows.map((row) => (
                   <TableRow key={row.username} hover>
                     <TableCell>
-                      <Link component={RouterLink} to={`/developers/${encodeURIComponent(row.username)}`} underline="hover">
+                      <Link
+                        component={RouterLink}
+                        to={`/developers/${encodeURIComponent(row.username)}?repo=${encodeURIComponent(projectName)}`}
+                        underline="hover"
+                      >
                         {row.username}
                       </Link>
                     </TableCell>

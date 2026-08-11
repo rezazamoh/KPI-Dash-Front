@@ -192,6 +192,11 @@ const RelationshipGraph: React.FC<
     setHoveredEdgeId,
   ] = useState<string | null>(null);
 
+  const [
+    selectedEdgeId,
+    setSelectedEdgeId,
+  ] = useState<string | null>(null);
+
   const [zoom, setZoom] =
     useState(1);
 
@@ -523,6 +528,26 @@ const RelationshipGraph: React.FC<
     dragRef.current = null;
   };
 
+  const handleSvgClick = (
+    event: React.MouseEvent<SVGSVGElement>,
+  ) => {
+    // Click on empty background clears edge selection
+    if (event.target === event.currentTarget) {
+      setSelectedEdgeId(null);
+    }
+  };
+
+  useEffect(() => {
+    // If user hovers another edge, clear persistent selection
+    if (
+      hoveredEdgeId &&
+      selectedEdgeId &&
+      hoveredEdgeId !== selectedEdgeId
+    ) {
+      setSelectedEdgeId(null);
+    }
+  }, [hoveredEdgeId, selectedEdgeId]);
+
   if (!nodes.length) {
     return (
       <Paper
@@ -596,6 +621,7 @@ const RelationshipGraph: React.FC<
             onMouseUp={
               handleSvgMouseUp
             }
+            onClick={handleSvgClick}
             onMouseLeave={
               handleSvgMouseUp
             }
@@ -781,332 +807,97 @@ const RelationshipGraph: React.FC<
                       6;
 
                   /*
-                   * Perpendicular offset creates two separate
-                   * curves for the two directions.
+                   * Draw a single, undirected curve between the
+                   * two nodes. Use the aggregate `edge.weight` to
+                   * determine stroke thickness and show both
+                   * directional counts in the hover tooltip.
                    */
-                  const dx =
-                    target.x -
-                    source.x;
+                  const dx = target.x - source.x;
+                  const dy = target.y - source.y;
+                  const length = Math.sqrt(dx * dx + dy * dy) || 1;
 
-                  const dy =
-                    target.y -
-                    source.y;
-
-                  const length =
-                    Math.sqrt(
-                      dx * dx +
-                        dy * dy,
-                    ) || 1;
-
-                  const nx =
-                    -dy / length;
-
-                  const ny =
-                    dx / length;
+                  const nx = -dy / length;
+                  const ny = dx / length;
 
                   const curvature = 20;
 
-                  const controlX =
-                    (source.x +
-                      target.x) /
-                      2 +
-                    nx * curvature;
+                  const controlX = (source.x + target.x) / 2 + nx * curvature;
+                  const controlY = (source.y + target.y) / 2 + ny * curvature;
 
-                  const controlY =
-                    (source.y +
-                      target.y) /
-                      2 +
-                    ny * curvature;
+                  const path = `M ${source.x} ${source.y} Q ${controlX} ${controlY} ${target.x} ${target.y}`;
 
-                  const reverseControlX =
-                    (source.x +
-                      target.x) /
-                      2 -
-                    nx * curvature;
-
-                  const reverseControlY =
-                    (source.y +
-                      target.y) /
-                      2 -
-                    ny * curvature;
-
-                  const sourcePath = `
-                    M ${source.x} ${source.y}
-                    Q ${controlX} ${controlY}
-                      ${target.x} ${target.y}
-                  `;
-
-                  const targetPath = `
-                    M ${target.x} ${target.y}
-                    Q ${reverseControlX} ${reverseControlY}
-                      ${source.x} ${source.y}
-                  `;
-
-                  const sourceDetails =
-                    formatInteractionBreakdown(
-                      edge,
-                      true,
-                    );
-
-                  const targetDetails =
-                    formatInteractionBreakdown(
-                      edge,
-                      false,
-                    );
-
-                  const sourceTooltip = (
-                    <Box>
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          fontWeight: 700,
-                        }}
-                      >
-                        {edge.source} →{' '}
-                        {edge.target}
-                      </Typography>
-
-                      <Typography variant="body2">
-                        {
-                          sourceDetails.total
-                        }{' '}
-                        interactions
-                      </Typography>
-
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                      >
-                        Reviews:{' '}
-                        {
-                          sourceDetails.reviewCount
-                        }{' '}
-                        · Comments:{' '}
-                        {
-                          sourceDetails.commentCount
-                        }
-                      </Typography>
-                    </Box>
-                  );
-
-                  const targetTooltip = (
-                    <Box>
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          fontWeight: 700,
-                        }}
-                      >
-                        {edge.target} →{' '}
-                        {edge.source}
-                      </Typography>
-
-                      <Typography variant="body2">
-                        {
-                          targetDetails.total
-                        }{' '}
-                        interactions
-                      </Typography>
-
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                      >
-                        Reviews:{' '}
-                        {
-                          targetDetails.reviewCount
-                        }{' '}
-                        · Comments:{' '}
-                        {
-                          targetDetails.commentCount
-                        }
-                      </Typography>
-                    </Box>
-                  );
+                  const combinedWidth = 1.5 + (edge.weight / edgeMaxWeight) * 8;
 
                   return (
                     <g
                       key={edge.id}
-                      onMouseEnter={() =>
-                        setHoveredEdgeId(
-                          edge.id,
-                        )
-                      }
-                      onMouseLeave={() =>
-                        setHoveredEdgeId(
-                          null,
-                        )
-                      }
+                      onMouseEnter={() => setHoveredEdgeId(edge.id)}
+                      onMouseLeave={() => setHoveredEdgeId(null)}
                     >
-                      {/* Direction A → B */}
+                      {/* Invisible wide path to capture hover / click */}
                       <path
-                        d={sourcePath}
+                        d={path}
                         fill="none"
                         stroke="transparent"
-                        strokeWidth={20}
+                        strokeWidth={Math.max(24, combinedWidth + 18)}
                         strokeLinecap="round"
-                        style={{
-                          cursor: 'pointer',
-                        }}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => setSelectedEdgeId(edge.id)}
                       />
 
-                      <Tooltip
-                        title={
-                          sourceTooltip
-                        }
-                        placement="top"
-                        arrow
-                      >
-                        <path
-                          d={sourcePath}
-                          fill="none"
-                          stroke={
-                            isHighlighted
-                              ? 'url(#edgeGradientActive)'
-                              : 'url(#edgeGradient)'
-                          }
-                          strokeWidth={
-                            sourceWidth
-                          }
-                          strokeLinecap="round"
-                          markerEnd={
-                            sourceWeight >
-                            0
-                              ? `url(#${
-                                  isHighlighted
-                                    ? 'arrowActive'
-                                    : 'arrowNormal'
-                                })`
-                              : undefined
-                          }
-                          opacity={
-                            sourceWeight >
-                            0
-                              ? isHighlighted
-                                ? 1
-                                : 0.72
-                              : 0
-                          }
-                        />
-                      </Tooltip>
-
-                      {/* Direction B → A */}
+                      {/* subtle backdrop for visibility when hovered/selected */}
                       <path
-                        d={targetPath}
+                        d={path}
                         fill="none"
-                        stroke="transparent"
-                        strokeWidth={20}
+                        stroke="rgba(255,255,255,0.06)"
+                        strokeWidth={Math.max(10, combinedWidth + 12)}
                         strokeLinecap="round"
-                        style={{
-                          cursor: 'pointer',
-                        }}
+                        opacity={isHighlighted || selectedEdgeId === edge.id ? 0.16 : 0.06}
                       />
 
-                      <Tooltip
-                        title={
-                          targetTooltip
-                        }
-                        placement="top"
-                        arrow
-                      >
-                        <path
-                          d={targetPath}
-                          fill="none"
-                          stroke={
-                            isHighlighted
-                              ? 'url(#edgeGradientActive)'
-                              : 'url(#edgeGradient)'
-                          }
-                          strokeWidth={
-                            targetWidth
-                          }
-                          strokeLinecap="round"
-                          markerEnd={
-                            targetWeight >
-                            0
-                              ? `url(#${
-                                  isHighlighted
-                                    ? 'arrowActive'
-                                    : 'arrowNormal'
-                                })`
-                              : undefined
-                          }
-                          opacity={
-                            targetWeight >
-                            0
-                              ? isHighlighted
-                                ? 1
-                                : 0.72
-                              : 0
-                          }
-                        />
-                      </Tooltip>
-
-                      {/* Relationship-level hover area */}
                       <Tooltip
                         title={
                           <Box>
-                            <Typography
-                              variant="body2"
-                              sx={{
-                                fontWeight: 700,
-                              }}
-                            >
-                              {edge.source}{' '}
-                              ↔{' '}
-                              {edge.target}
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                              {edge.source} ↔ {edge.target}
                             </Typography>
 
                             <Typography variant="body2">
-                              Total:{' '}
-                              {
-                                edge.totalInteractions
-                              }{' '}
-                              interactions
+                              Total: {edge.totalInteractions} interactions
                             </Typography>
 
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                            >
-                              {edge.source}{' '}
-                              →{' '}
-                              {edge.target}:{' '}
-                              {
-                                edge.sourceInteractions
-                              }
-                              {' · '}
-                              {edge.target}{' '}
-                              →{' '}
-                              {edge.source}:{' '}
-                              {
-                                edge.targetInteractions
-                              }
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                              {edge.source} → {edge.target}: {edge.sourceInteractions}
+                            </Typography>
+
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                              {edge.target} → {edge.source}: {edge.targetInteractions}
                             </Typography>
                           </Box>
                         }
                         placement="top"
                         arrow
+                        open={hoveredEdgeId === edge.id || selectedEdgeId === edge.id}
                       >
-                        <circle
-                          cx={
-                            (source.x +
-                              target.x) /
-                            2
-                          }
-                          cy={
-                            (source.y +
-                              target.y) /
-                            2
-                          }
-                          r={18}
-                          fill="transparent"
-                          style={{
-                            cursor:
-                              'pointer',
-                          }}
+                        <path
+                          d={path}
+                          fill="none"
+                          stroke={isHighlighted ? 'url(#edgeGradientActive)' : 'url(#edgeGradient)'}
+                          strokeWidth={isHighlighted ? Math.max(2, combinedWidth) : Math.max(1, combinedWidth * 0.9)}
+                          strokeLinecap="round"
+                          opacity={isHighlighted ? 1 : 0.88}
                         />
                       </Tooltip>
+
+                      {/* Relationship-level hover area (center) */}
+                      <circle
+                        cx={(source.x + target.x) / 2}
+                        cy={(source.y + target.y) / 2}
+                        r={18}
+                        fill="transparent"
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => setSelectedEdgeId(edge.id)}
+                      />
                     </g>
                   );
                 },

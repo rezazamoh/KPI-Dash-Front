@@ -1,6 +1,6 @@
 import { Alert, Box, Button, Chip, Collapse, Divider, Grid, Link, Paper, Stack, Typography } from '@mui/material';
 import { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useParams } from 'react-router-dom';
+import { Link as RouterLink, useParams, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchDeveloper, fetchDeveloperTopics, fetchDevelopers } from '@/api/developers';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -65,13 +65,25 @@ const DeveloperDetailPage: React.FC = () => {
   const { username } = useParams<{ username: string }>();
   const developersQuery = useQuery({ queryKey: ['developers'], queryFn: fetchDevelopers });
   const [selectedDeveloper, setSelectedDeveloper] = useState<string | null>(username ?? null);
-  const [selectedRepositories, setSelectedRepositories] = useState<string[]>([]);
+  const location = useLocation();
+
+  const repoFromQuery = useMemo(() => {
+    try {
+      const params = new URLSearchParams(location.search);
+      const repo = params.get('repo');
+      return repo ? [repo] : [];
+    } catch (e) {
+      return [];
+    }
+  }, [location.search]);
+
+  const [selectedRepositories, setSelectedRepositories] = useState<string[]>(repoFromQuery);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [live, setLive] = useState(getDefaultLiveValue);
   const [draftDeveloper, setDraftDeveloper] = useState<string | null>(username ?? null);
-  const [draftRepositories, setDraftRepositories] = useState<string[]>([]);
+  const [draftRepositories, setDraftRepositories] = useState<string[]>(repoFromQuery);
   const [draftTopics, setDraftTopics] = useState<string[]>([]);
   const [draftStartDate, setDraftStartDate] = useState('');
   const [draftEndDate, setDraftEndDate] = useState('');
