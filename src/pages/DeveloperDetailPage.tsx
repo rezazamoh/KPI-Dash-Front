@@ -603,27 +603,12 @@ const DeveloperDetailPage: React.FC = () => {
             <SectionCard title="Collaboration network">
               <Stack spacing={2}>
                 <Typography color="text.secondary">
-                  The graph highlights peer relationships by review, comment or combined interaction counts.
+                  The graph highlights peer relationships by review and comment interaction counts.
                 </Typography>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                  {(['reviews', 'comments', 'combined'] as CollaborationMode[]).map((mode) => (
-                    <Button
-                      key={mode}
-                      size="small"
-                      variant={collaborationMode === mode ? 'contained' : 'outlined'}
-                      onClick={() => setCollaborationMode(mode)}
-                    >
-                      {mode === 'reviews' ? 'Reviews' : mode === 'comments' ? 'Comments' : 'Combined'}
-                    </Button>
-                  ))}
-                </Stack>
                 {!hasAnyCollaboration ? (
                   <Typography color="text.secondary">No collaboration data is available for the selected filters.</Typography>
                 ) : (
                   <>
-                    <Typography variant="body2" color="text.secondary">
-                      Showing {reducedGraph.edges.length} of {graphData.edges.length} relationships. Use the table below for the full per-person view.
-                    </Typography>
                     <RelationshipGraph
                       nodes={reducedGraph.nodes}
                       edges={reducedGraph.edges}

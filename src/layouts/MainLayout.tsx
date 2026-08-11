@@ -3,8 +3,7 @@ import { NavLink } from 'react-router-dom';
 
 const navItems = [
   { label: 'Dashboard', path: '/' },
-  { label: 'Developers', path: '/developers' },
-  { label: 'Projects', path: '/projects' },
+  { label: 'Sign in', path: '/developers' },
 ];
 
 const MainLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
@@ -18,7 +17,7 @@ const MainLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
                 KPI Dash
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Gerrit health and developer performance
+                Gerrit developer performance
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
