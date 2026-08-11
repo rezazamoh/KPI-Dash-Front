@@ -70,7 +70,6 @@ const FilterBar: React.FC<FilterBarProps> = ({
       direction={{ xs: 'column', md: 'row' }}
       spacing={2}
       flexWrap="wrap"
-      justifyContent="space-between"
       alignItems={{ xs: 'stretch', md: 'center' }}
     >
       <DeveloperSelector
@@ -91,11 +90,17 @@ const FilterBar: React.FC<FilterBarProps> = ({
           onOpenChange={onTopicMenuOpenChange}
         />
       ) : null}
+      <Stack direction="row" spacing={1}>
+    <DateRangePicker
+      startDate={draftStartDate}
+      endDate={draftEndDate}
+      onStartDateChange={onStartDateChange}
+      onEndDateChange={onEndDateChange}
+    />
       <FormControlLabel
         control={<Switch checked={draftLive} onChange={(event) => onLiveChange(event.target.checked)} />}
         label="Live only"
       />
-      <Stack direction="row" spacing={1}>
         <Button variant="outlined" size="small" onClick={onResetFilters}>
           Reset
         </Button>
@@ -104,12 +109,6 @@ const FilterBar: React.FC<FilterBarProps> = ({
         </Button>
       </Stack>
     </Stack>
-    <DateRangePicker
-      startDate={draftStartDate}
-      endDate={draftEndDate}
-      onStartDateChange={onStartDateChange}
-      onEndDateChange={onEndDateChange}
-    />
   </Stack>
 );
 

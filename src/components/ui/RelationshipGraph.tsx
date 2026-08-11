@@ -1,4 +1,16 @@
-import { Box, Paper, Stack, Tooltip, Typography } from '@mui/material';
+import {
+  Box,
+  Checkbox,
+  Divider,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Paper,
+  Stack,
+  Tooltip,
+  Typography,
+} from '@mui/material';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { GraphEdge, GraphNode } from '@/utils/relationshipGraph';
 
@@ -208,6 +220,10 @@ const RelationshipGraph: React.FC<
   const [dragging, setDragging] =
     useState(false);
 
+  const [visibleNodeIds, setVisibleNodeIds] = useState<Set<string>>(
+    () => new Set(nodes.map((node) => node.id)),
+  );
+
   const svgRef =
     useRef<SVGSVGElement | null>(
       null,
@@ -221,7 +237,45 @@ const RelationshipGraph: React.FC<
       originY: number;
     } | null>(null);
 
+  const toggleNodeVisibility = (
+    nodeId: string,
+  ) => {
+    setVisibleNodeIds((previous) => {
+      const next = new Set(previous);
+
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
+      } else {
+        next.add(nodeId);
+      }
+
+      return next;
+    });
+  };
+
   useEffect(() => {
+    if (!nodes.length) {
+      setVisibleNodeIds(new Set());
+      setSelectedNodeId(null);
+      return;
+    }
+
+    setVisibleNodeIds((previous) => {
+      const next = new Set<string>();
+
+      nodes.forEach((node) => {
+        if (previous.has(node.id)) {
+          next.add(node.id);
+        }
+      });
+
+      if (!next.size) {
+        nodes.forEach((node) => next.add(node.id));
+      }
+
+      return next;
+    });
+
     if (
       selectedNodeId &&
       !nodes.some(
@@ -241,15 +295,45 @@ const RelationshipGraph: React.FC<
     selectedNodeId,
   ]);
 
+  useEffect(() => {
+    if (
+      selectedNodeId &&
+      !visibleNodeIds.has(selectedNodeId)
+    ) {
+      const firstVisible = nodes.find(
+        (node) => visibleNodeIds.has(node.id),
+      )?.id;
+      setSelectedNodeId(firstVisible ?? null);
+    }
+  }, [selectedNodeId, visibleNodeIds, nodes]);
+
+  const filteredNodes = useMemo(
+    () =>
+      nodes.filter((node) =>
+        visibleNodeIds.has(node.id),
+      ),
+    [nodes, visibleNodeIds],
+  );
+
+  const filteredEdges = useMemo(
+    () =>
+      edges.filter(
+        (edge) =>
+          visibleNodeIds.has(edge.source) &&
+          visibleNodeIds.has(edge.target),
+      ),
+    [edges, visibleNodeIds],
+  );
+
   const visibleGraph = useMemo(() => {
-    if (!nodes.length) {
+    if (!filteredNodes.length) {
       return {
         nodes: [] as GraphNode[],
         edges: [] as GraphEdge[],
       };
     }
 
-    const rankedNodes = [...nodes].sort(
+    const rankedNodes = [...filteredNodes].sort(
       (a, b) =>
         b.activity - a.activity,
     );
@@ -259,7 +343,7 @@ const RelationshipGraph: React.FC<
       rankedNodes[0]?.id ??
       null;
 
-    const edgePool = [...edges].sort(
+    const edgePool = [...filteredEdges].sort(
       (left, right) =>
         right.weight - left.weight,
     );
@@ -322,20 +406,20 @@ const RelationshipGraph: React.FC<
     };
   }, [
     centerNodeId,
-    edges,
-    nodes,
+    filteredEdges,
+    filteredNodes,
   ]);
 
   const positions = useMemo(() => {
     const studyNodes =
       visibleGraph.nodes.length
         ? visibleGraph.nodes
-        : nodes;
+        : filteredNodes;
 
     const studyEdges =
       visibleGraph.edges.length
         ? visibleGraph.edges
-        : [];
+        : filteredEdges;
 
     if (!studyNodes.length) {
       return {} as Record<
@@ -604,34 +688,119 @@ const RelationshipGraph: React.FC<
             overflow: 'hidden',
             bgcolor:
               'rgba(10,16,36,0.95)',
+            display: 'flex',
           }}
         >
-          <svg
-            ref={svgRef}
-            width="100%"
-            height="360"
-            viewBox="-320 -180 640 360"
-            onWheel={handleWheel}
-            onMouseDown={
-              handleSvgMouseDown
-            }
-            onMouseMove={
-              handleSvgMouseMove
-            }
-            onMouseUp={
-              handleSvgMouseUp
-            }
-            onClick={handleSvgClick}
-            onMouseLeave={
-              handleSvgMouseUp
-            }
-            style={{
-              cursor: dragging
-                ? 'grabbing'
-                : 'grab',
-              touchAction: 'none',
+          <Box
+            sx={{
+              width: 240,
+              minWidth: 240,
+              maxHeight: 480,
+              overflowY: 'auto',
+              borderRight:
+                '1px solid rgba(255,255,255,0.08)',
+              bgcolor:
+                'rgba(15,23,42,0.98)',
             }}
           >
+            <Box sx={{ p: 2, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                Nodes
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Toggle visibility or click to select.
+              </Typography>
+            </Box>
+            <List dense disablePadding>
+              {nodes
+                .slice()
+                .sort((a, b) =>
+                  b.activity - a.activity ||
+                  a.label.localeCompare(b.label),
+                )
+                .map((node) => {
+                  const isSelected =
+                    selectedNodeId === node.id;
+                  const isVisible =
+                    visibleNodeIds.has(node.id);
+
+                  return (
+                    <ListItemButton
+                      key={node.id}
+                      selected={isSelected}
+                      onClick={() => {
+                        setVisibleNodeIds((previous) => {
+                          const next = new Set(previous);
+                          next.add(node.id);
+                          return next;
+                        });
+                        setSelectedNodeId(node.id);
+                      }}
+                      sx={{
+                        px: 1,
+                      }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 34 }}>
+                        <Checkbox
+                          edge="start"
+                          checked={isVisible}
+                          tabIndex={-1}
+                          disableRipple
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleNodeVisibility(node.id);
+                          }}
+                          sx={{
+                            color: 'primary.main',
+                          }}
+                        />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={node.label}
+                        secondary={`Activity: ${node.activity}`}
+                        primaryTypographyProps={{
+                          variant: 'body2',
+                          noWrap: true,
+                        }}
+                        secondaryTypographyProps={{
+                          variant: 'caption',
+                          noWrap: true,
+                          color: 'text.secondary',
+                        }}
+                      />
+                    </ListItemButton>
+                  );
+                })}
+            </List>
+          </Box>
+
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <svg
+              ref={svgRef}
+              width="100%"
+              height="480"
+              viewBox="-320 -180 640 360"
+              onWheel={handleWheel}
+              onMouseDown={
+                handleSvgMouseDown
+              }
+              onMouseMove={
+                handleSvgMouseMove
+              }
+              onMouseUp={
+                handleSvgMouseUp
+              }
+              onClick={handleSvgClick}
+              onMouseLeave={
+                handleSvgMouseUp
+              }
+              style={{
+                cursor: dragging
+                  ? 'grabbing'
+                  : 'grab',
+                touchAction: 'none',
+              }}
+            >
             <defs>
               <linearGradient
                 id="graphBackground"
@@ -1043,6 +1212,7 @@ const RelationshipGraph: React.FC<
             </g>
           </svg>
         </Box>
+      </Box>
       </Stack>
     </Paper>
   );

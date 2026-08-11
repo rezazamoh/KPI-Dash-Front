@@ -281,20 +281,7 @@ const DeveloperDetailPage: React.FC = () => {
           <Typography color="text.secondary">
             {activeRepoLabel} · {activeTopicLabel} · {activeDateLabel}
           </Typography>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center" flexWrap="wrap">
-            <Chip label={data.live ? '● Live data' : '● Cached snapshot'} variant="outlined" />
-            {isCached ? (
-              <Chip
-                label={`Snapshot: ${formatDateLabel(data.snapshot_time)} ${new Date(data.snapshot_time).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}`}
-                variant="outlined"
-              />
-            ) : null}
-          </Stack>
         </Stack>
-
         <FilterBar
           developerOptions={developersQuery.data?.developers ?? []}
           repositoryOptions={repositoryOptions}
@@ -357,7 +344,7 @@ const DeveloperDetailPage: React.FC = () => {
         )}
 
         <Grid container spacing={3}>
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} md={3}>
             <MetricCard
               title="Changes"
               value={metrics.change_count}
@@ -365,7 +352,7 @@ const DeveloperDetailPage: React.FC = () => {
               accent="primary.main"
             />
           </Grid>
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} md={3}>
             <MetricCard
               title="Avg. patchsets"
               value={metrics.average_patchsets.toFixed(2)}
@@ -373,12 +360,20 @@ const DeveloperDetailPage: React.FC = () => {
               accent="secondary.main"
             />
           </Grid>
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} md={3}>
             <MetricCard
               title="Review response"
               value={metrics.reviewer_response_time ? `${metrics.reviewer_response_time.mean_hours.toFixed(2)} h` : '—'}
               subtitle={metrics.reviewer_response_time ? 'Average reviewer response time' : 'No data available'}
               accent="success.main"
+            />
+          </Grid>
+          <Grid item xs={12} md={3}>
+            <MetricCard
+              title="Lead time"
+              value={metrics.lead_time?.mean !== undefined && metrics.lead_time !== null ? `${metrics.lead_time.mean.toFixed(2)} h` : '—'}
+              subtitle={metrics.lead_time ? 'Mean lead time' : 'No data available'}
+              accent="info.main"
             />
           </Grid>
         </Grid>

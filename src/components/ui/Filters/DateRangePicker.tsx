@@ -8,7 +8,7 @@ interface DateRangePickerProps {
 }
 
 const DateRangePicker: React.FC<DateRangePickerProps> = ({ startDate, endDate, onStartDateChange, onEndDateChange }) => (
-  <Box sx={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+  <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
     <TextField
       label="Start date"
       type="date"
