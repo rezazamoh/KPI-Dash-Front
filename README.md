@@ -36,9 +36,10 @@ Query parameters are forwarded from the UI filters to the backend without local 
    npm install
    ```
 
-2. Create a `.env` file at the project root with your backend base URL:
+2. Create a `.env` file at the project root with your backend base URL and local development proxy target:
    ```bash
    VITE_API_BASE_URL=http://localhost:8000
+   VITE_DEV_API_PROXY_TARGET=http://localhost:8000
    ```
 
 3. Start the development server:
