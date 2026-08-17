@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 
 const navItems = [
   { label: 'Dashboard', path: '/' },
-  { label: 'Sign in', path: '/developers' },
+  { label: 'Sign in', path: '/signin' },
 ];
 
 const MainLayout: React.FC<React.PropsWithChildren> = ({ children }) => {

@@ -24,6 +24,7 @@ The frontend consumes these backend endpoints:
 
 - `GET /developers`
 - `GET /developers/{username}`
+- `GET /developers/{username}/topics`
 - `GET /projects`
 - `GET /projects/{project}`
 
@@ -48,11 +49,3 @@ Query parameters are forwarded from the UI filters to the backend without local 
    ```
 
 4. Open your browser at `http://localhost:3000`.
-
-## Notes
-
-- Uses a dark Material UI theme.
-- Routing is implemented with React Router.
-- React Query powers all data fetching.
-- Recharts is used for chart visualization.
-- The backend remains the source of truth for all metrics.
