@@ -77,7 +77,7 @@ const DevelopersPage: React.FC = () => {
               >
                 <Link
                   component={RouterLink}
-                  to={`/developers/${encodeURIComponent(developer)}`}
+                  to={`/gerrit/developers/${encodeURIComponent(developer)}`}
                   underline="hover"
                   sx={{ fontSize: '1rem', fontWeight: 500 }}
                 >

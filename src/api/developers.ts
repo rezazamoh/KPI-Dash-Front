@@ -30,7 +30,7 @@ const buildQueryString = (params: Record<string, unknown>) => {
 };
 
 export const fetchDevelopers = async (): Promise<DeveloperListResponse> => {
-  const response = await api.get('/developers');
+  const response = await api.get('/gerrit/developers');
   return response.data;
 };
 
@@ -48,7 +48,7 @@ export const fetchDeveloper = async (
     live: params.live ?? true,
   });
 
-  const response = await api.get(`/developers/${encodeURIComponent(username)}${queryString}`);
+  const response = await api.get(`/gerrit/developers/${encodeURIComponent(username)}${queryString}`);
   return response.data;
 };
 
@@ -57,7 +57,7 @@ export const fetchDeveloperTopics = async (
   repos: string[]
 ): Promise<string[]> => {
   const queryString = buildQueryString({ repo: repos });
-  const response = await api.get(`/developers/${encodeURIComponent(username)}/topics${queryString}`);
+  const response = await api.get(`/gerrit/developers/${encodeURIComponent(username)}/topics${queryString}`);
 
   const data = response.data;
   if (Array.isArray(data)) {

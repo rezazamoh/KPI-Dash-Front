@@ -370,7 +370,7 @@ const ProjectDetailPage: React.FC = () => {
                     <TableCell>
                       <Link
                         component={RouterLink}
-                        to={`/developers/${encodeURIComponent(row.username)}?repo=${encodeURIComponent(projectName)}`}
+                        to={`/gerrit/developers/${encodeURIComponent(row.username)}?repo=${encodeURIComponent(projectName)}`}
                         underline="hover"
                       >
                         {row.username}
@@ -407,7 +407,7 @@ const ProjectDetailPage: React.FC = () => {
             nodes={visibleProjectGraph.nodes}
             edges={visibleProjectGraph.edges}
             centerNodeId={visibleProjectGraph.centerNodeId ?? undefined}
-            nodeLinkHref={(node) => `/developers/${encodeURIComponent(node.id)}?repo=${encodeURIComponent(projectName)}`}
+            nodeLinkHref={(node) => `/gerrit/developers/${encodeURIComponent(node.id)}?repo=${encodeURIComponent(projectName)}`}
           />
         </SectionCard>
 

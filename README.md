@@ -22,11 +22,11 @@ src/
 
 The frontend consumes these backend endpoints:
 
-- `GET /developers`
-- `GET /developers/{username}`
-- `GET /developers/{username}/topics`
-- `GET /projects`
-- `GET /projects/{project}`
+- `GET /gerrit/developers`
+- `GET /gerrit/developers/{username}`
+- `GET /gerrit/developers/{username}/topics`
+- `GET /gerrit/projects`
+- `GET /gerrit/projects/{project}`
 
 Query parameters are forwarded from the UI filters to the backend without local KPI recalculation.
 

@@ -369,7 +369,7 @@ const DeveloperDetailPage: React.FC = () => {
                         <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" spacing={2}>
                           <Box>
                             <Typography fontWeight={600}>
-                              <Link component={RouterLink} to={`/projects/${encodeURIComponent(row.repo)}`} underline="hover">
+                              <Link component={RouterLink} to={`/gerrit/projects/${encodeURIComponent(row.repo)}`} underline="hover">
                                 {row.repo}
                               </Link>
                             </Typography>

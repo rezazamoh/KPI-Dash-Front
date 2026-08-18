@@ -92,7 +92,7 @@ const DashboardPage: React.FC = () => {
                           '&:last-child': { borderBottom: 'none' },
                         }}
                       >
-                        <Link component={RouterLink} to={`/developers/${encodeURIComponent(developer)}`} underline="hover" sx={{ fontSize: '1rem', fontWeight: 500 }}>
+                        <Link component={RouterLink} to={`/gerrit/developers/${encodeURIComponent(developer)}`} underline="hover" sx={{ fontSize: '1rem', fontWeight: 500 }}>
                           {developer}
                         </Link>
                       </ListItem>
@@ -125,7 +125,7 @@ const DashboardPage: React.FC = () => {
                           '&:last-child': { borderBottom: 'none' },
                         }}
                       >
-                        <Link component={RouterLink} to={`/projects/${encodeURIComponent(project)}`} underline="hover" sx={{ fontSize: '1rem', fontWeight: 500 }}>
+                        <Link component={RouterLink} to={`/gerrit/projects/${encodeURIComponent(project)}`} underline="hover" sx={{ fontSize: '1rem', fontWeight: 500 }}>
                           {project}
                         </Link>
                       </ListItem>

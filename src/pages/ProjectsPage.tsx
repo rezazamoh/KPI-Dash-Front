@@ -52,7 +52,7 @@ const ProjectsPage: React.FC = () => {
                         <Typography variant="subtitle1" gutterBottom>
                           {project}
                         </Typography>
-                        <Link component={RouterLink} to={`/projects/${encodeURIComponent(project)}`} underline="hover">
+                        <Link component={RouterLink} to={`/gerrit/projects/${encodeURIComponent(project)}`} underline="hover">
                           View details
                         </Link>
                       </CardContent>
