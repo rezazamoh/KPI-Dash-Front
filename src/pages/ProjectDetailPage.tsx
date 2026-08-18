@@ -390,7 +390,7 @@ const ProjectDetailPage: React.FC = () => {
 
         <ChartCard title="Changes by developer">
           <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={developerChartData} margin={{ left: 0, left: 0, top: 20, bottom: 20 }}>
+            <BarChart data={developerChartData} margin={{left: 0, top: 20, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
               <XAxis dataKey="name" stroke="#cfd8fc" />
               <YAxis stroke="#cfd8fc" />
