@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 
 const navItems = [
   { label: 'Dashboard', path: '/' },
+  { label: 'Jira Analysis', path: '/jira/analysis' },
   { label: 'Sign in', path: '/signin' },
 ];
 

@@ -6,6 +6,7 @@ import DevelopersPage from '@/pages/DevelopersPage';
 import ProjectsPage from '@/pages/ProjectsPage';
 import DeveloperDetailPage from '@/pages/DeveloperDetailPage';
 import ProjectDetailPage from '@/pages/ProjectDetailPage';
+import JiraAnalysisPage from '@/pages/JiraAnalysisPage';
 
 const App: React.FC = () => {
   return (
@@ -17,6 +18,7 @@ const App: React.FC = () => {
         <Route path="/gerrit/developers/:username" element={<DeveloperDetailPage />} />
         <Route path="/gerrit/projects" element={<ProjectsPage />} />
         <Route path="/gerrit/projects/:project" element={<ProjectDetailPage />} />
+        <Route path="/jira/analysis" element={<JiraAnalysisPage />} />
       </Routes>
     </MainLayout>
   );

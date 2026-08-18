@@ -1,8 +1,12 @@
 import axios from 'axios';
 import { DeveloperListResponse, DeveloperDetailResponse } from '@/types/developers';
-
+/*
 const api = axios.create({
   baseURL: import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_BASE_URL ?? '/api'),
+});
+*/
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api',
 });
 
 const buildQueryString = (params: Record<string, unknown>) => {
