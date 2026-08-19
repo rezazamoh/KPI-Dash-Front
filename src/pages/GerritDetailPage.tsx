@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchProject } from '@/api/projects';
+import { fetchTeamPerformance } from '@/api/teams';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorPanel from '@/components/ui/ErrorPanel';
 import SectionCard from '@/components/ui/SectionCard';
@@ -50,7 +51,13 @@ const sumPeople = (people: Array<{ username: string; count: number }> | null | u
   people?.reduce((sum, item) => sum + item.count, 0) ?? 0;
 
 const ProjectDetailPage: React.FC = () => {
-  const { project } = useParams<{ project: string }>();
+  const { project, team } = useParams<{
+    project?: string;
+    team?: string;
+  }>();
+
+  const isTeam = Boolean(team);
+  const name = team ?? project ?? '';
   const [selectedDevelopers, setSelectedDevelopers] = useState<string[]>([]);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [startDate, setStartDate] = useState('');
@@ -75,29 +82,45 @@ const ProjectDetailPage: React.FC = () => {
     setDraftLive(live);
   }, [selectedDevelopers, selectedTopics, startDate, endDate, live]);
 
-  const detailQuery = useQuery<ProjectDetailResponse | undefined>({
-    queryKey: ['project-detail', projectName, selectedDevelopers, selectedTopics, startDate, endDate, live],
+  const detailQuery = useQuery({
+    queryKey: [
+      isTeam ? 'team-detail' : 'project-detail',
+      name,
+      selectedDevelopers,
+      selectedTopics,
+      startDate,
+      endDate,
+    ],
     queryFn: async () => {
-      if (!projectName) return undefined;
+      if (!name) return undefined;
 
       const params: Record<string, unknown> = {};
+
       if (selectedDevelopers.length > 0) {
         params.username = selectedDevelopers;
       }
+
       if (selectedTopics.length > 0) {
         params.topic = selectedTopics;
       }
+
       if (startDate) {
         params.start_date = startDate;
       }
+
       if (endDate) {
         params.end_date = endDate;
       }
+
+      if (isTeam) {
+        return fetchTeamPerformance(name, params);
+      }
+
       params.live = live;
 
-      return fetchProject(projectName, params);
+      return fetchProject(name, params);
     },
-    enabled: Boolean(projectName),
+    enabled: Boolean(name),
     staleTime: 5 * 60 * 1000
   });
 
@@ -292,8 +315,14 @@ const ProjectDetailPage: React.FC = () => {
     <Box>
       <Stack spacing={3}>
         <Stack spacing={1}>
-          <Typography variant="h4">{projectName}</Typography>
-          <Typography color="text.secondary">Explore change activity, repository status, and developer collaboration for this project.</Typography>
+          <Typography variant="h4">
+            {isTeam ? `Team: ${name}` : name}
+          </Typography>
+          <Typography color="text.secondary">
+            {isTeam
+              ? 'Explore team activity, developer contribution, and collaboration.'
+              : 'Explore change activity, repository status, and developer collaboration for this project.'}
+          </Typography>
         </Stack>
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center" flexWrap="wrap">
@@ -371,7 +400,11 @@ const ProjectDetailPage: React.FC = () => {
                     <TableCell>
                       <Link
                         component={RouterLink}
-                        to={`/gerrit/developers/${encodeURIComponent(row.username)}?repo=${encodeURIComponent(projectName)}`}
+                        to={
+                        isTeam
+                          ? `/gerrit/developers/${encodeURIComponent(row.username)}`
+                          : `/gerrit/developers/${encodeURIComponent(row.username)}?repo=${encodeURIComponent(name)}`
+                            }
                         underline="hover"
                       >
                         {row.username}
@@ -408,7 +441,11 @@ const ProjectDetailPage: React.FC = () => {
             nodes={visibleProjectGraph.nodes}
             edges={visibleProjectGraph.edges}
             centerNodeId={visibleProjectGraph.centerNodeId ?? undefined}
-            nodeLinkHref={(node) => `/gerrit/developers/${encodeURIComponent(node.id)}?repo=${encodeURIComponent(projectName)}`}
+            nodeLinkHref={(node) =>
+              isTeam
+                ? `/gerrit/developers/${encodeURIComponent(node.id)}`
+                : `/gerrit/developers/${encodeURIComponent(node.id)}?repo=${encodeURIComponent(name)}`
+            }
           />
         </SectionCard>
 

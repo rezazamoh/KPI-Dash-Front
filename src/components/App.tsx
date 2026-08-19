@@ -5,8 +5,7 @@ import SignInPage from '@/pages/SignInPage';
 import DevelopersPage from '@/pages/DevelopersPage';
 import ProjectsPage from '@/pages/ProjectsPage';
 import DeveloperDetailPage from '@/pages/DeveloperDetailPage';
-import ProjectDetailPage from '@/pages/ProjectDetailPage';
-import TeamPerformancePage from '@/pages/TeamPerformancePage';
+import GerritDetailPage from '@/pages/GerritDetailPage';
 import JiraAnalysisPage from '@/pages/JiraAnalysisPage';
 
 const App: React.FC = () => {
@@ -19,8 +18,15 @@ const App: React.FC = () => {
         <Route path="/gerrit/developers" element={<DevelopersPage />} />
         <Route path="/gerrit/developers/:username" element={<DeveloperDetailPage />} />
         <Route path="/gerrit/projects" element={<ProjectsPage />} />
-        <Route path="/gerrit/projects/:project" element={<ProjectDetailPage />} />
-        <Route path="/gerrit/teams/:teamId" element={<TeamPerformancePage />}/>
+        <Route
+            path="/gerrit/projects/:project"
+            element={<GerritDetailPage />}
+          />
+
+          <Route
+            path="/gerrit/teams/:team"
+            element={<GerritDetailPage />}
+          />
         <Route path="/jira" element={<JiraAnalysisPage />} />
     
       </Routes>
