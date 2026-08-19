@@ -5,14 +5,7 @@ import {
   JiraPerformanceResponse,
   JiraProjectsResponse,
 } from '@/types/jira';
-/*
-const api = axios.create({
-  baseURL: import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_BASE_URL ?? '/api'),
-});
-*/
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api',
-});
+import { apiClient } from './client';
 
 const buildQueryString = (params: Record<string, unknown>) => {
   const searchParams = new URLSearchParams();
@@ -39,12 +32,12 @@ const buildQueryString = (params: Record<string, unknown>) => {
 };
 
 export const fetchJiraProjects = async (): Promise<JiraProjectsResponse> => {
-  const response = await api.get('/jira/projects');
+  const response = await apiClient.get('/jira/projects');
   return response.data;
 };
 
 export const fetchJiraBoards = async (projectKey: string): Promise<JiraBoardsResponse> => {
-  const response = await api.get(`/jira/projects/${encodeURIComponent(projectKey)}/boards`);
+  const response = await apiClient.get(`/jira/projects/${encodeURIComponent(projectKey)}/boards`);
   return response.data;
 };
 
@@ -53,11 +46,11 @@ export const fetchJiraPerformance = async (
   boards: number[]
 ): Promise<JiraPerformanceResponse> => {
   const queryString = buildQueryString({ boards: boards.length ? boards.map(String) : undefined });
-  const response = await api.get(`/jira/projects/${encodeURIComponent(projectKey)}/performance${queryString}`);
+  const response = await apiClient.get(`/jira/projects/${encodeURIComponent(projectKey)}/performance${queryString}`);
   return response.data;
 };
 
 export const fetchJiraIssue = async (issueKey: string): Promise<JiraIssueResponse> => {
-  const response = await api.get(`/jira/issues/${encodeURIComponent(issueKey)}`);
+  const response = await apiClient.get(`/jira/issues/${encodeURIComponent(issueKey)}`);
   return response.data;
 };

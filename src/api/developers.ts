@@ -1,13 +1,6 @@
 import axios from 'axios';
 import { DeveloperListResponse, DeveloperDetailResponse } from '@/types/developers';
-/*
-const api = axios.create({
-  baseURL: import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_BASE_URL ?? '/api'),
-});
-*/
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api',
-});
+import { apiClient } from './client';
 
 const buildQueryString = (params: Record<string, unknown>) => {
   const searchParams = new URLSearchParams();
@@ -34,7 +27,7 @@ const buildQueryString = (params: Record<string, unknown>) => {
 };
 
 export const fetchDevelopers = async (): Promise<DeveloperListResponse> => {
-  const response = await api.get('/gerrit/developers');
+  const response = await apiClient.get('/gerrit/developers');
   return response.data;
 };
 
@@ -52,7 +45,7 @@ export const fetchDeveloper = async (
     live: params.live ?? true,
   });
 
-  const response = await api.get(`/gerrit/developers/${encodeURIComponent(username)}${queryString}`);
+  const response = await apiClient.get(`/gerrit/developers/${encodeURIComponent(username)}${queryString}`);
   return response.data;
 };
 
@@ -61,7 +54,7 @@ export const fetchDeveloperTopics = async (
   repos: string[]
 ): Promise<string[]> => {
   const queryString = buildQueryString({ repo: repos });
-  const response = await api.get(`/gerrit/developers/${encodeURIComponent(username)}/topics${queryString}`);
+  const response = await apiClient.get(`/gerrit/developers/${encodeURIComponent(username)}/topics${queryString}`);
 
   const data = response.data;
   if (Array.isArray(data)) {

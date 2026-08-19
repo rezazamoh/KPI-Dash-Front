@@ -2,8 +2,8 @@ import { Box, Container, Link, Toolbar, Typography, AppBar } from '@mui/material
 import { NavLink } from 'react-router-dom';
 
 const navItems = [
-  { label: 'Dashboard', path: '/' },
-  { label: 'Jira Analysis', path: '/jira/analysis' },
+  { label: 'Gerrit Dashboard', path: '/gerrit' },
+  { label: 'Jira Analysis', path: '/jira' },
   { label: 'Sign in', path: '/signin' },
 ];
 

@@ -1,0 +1,613 @@
+import {
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  Grid,
+  InputLabel,
+  Link,
+  List,
+  ListItem,
+  MenuItem,
+  Select,
+  Stack,
+  Tab,
+  Tabs,
+  TextField,
+  Typography,
+} from '@mui/material';
+
+import { useMemo, useState } from 'react';
+
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+import { Link as RouterLink } from 'react-router-dom';
+
+import { fetchDevelopers } from '@/api/developers';
+import { fetchProjects } from '@/api/projects';
+
+import {
+  createTeam,
+  deleteTeam,
+  fetchTeams,
+  Team,
+  updateTeam,
+} from '@/api/teams';
+
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import ErrorPanel from '@/components/ui/ErrorPanel';
+import MetricCard from '@/components/ui/MetricCard';
+import SectionCard from '@/components/ui/SectionCard';
+
+const GerritDashboardPage: React.FC = () => {
+  const queryClient = useQueryClient();
+
+  const developersQuery = useQuery({
+    queryKey: ['developers'],
+    queryFn: fetchDevelopers,
+    staleTime: 5 * 60 * 1000
+  });
+
+  const projectsQuery = useQuery({
+    queryKey: ['projects'],
+    queryFn: fetchProjects,
+    staleTime: 5 * 60 * 1000
+  });
+
+  const teamsQuery = useQuery({
+    queryKey: ['teams'],
+    queryFn: fetchTeams,
+    staleTime: 5 * 60 * 1000
+  });
+
+  const [tab, setTab] = useState(0);
+
+  const [developerSearch, setDeveloperSearch] = useState('');
+  const [projectSearch, setProjectSearch] = useState('');
+  const [teamSearch, setTeamSearch] = useState('');
+
+  const [projectFilter, setProjectFilter] = useState('');
+
+  const [teamDialogOpen, setTeamDialogOpen] = useState(false);
+
+  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+
+  const [teamName, setTeamName] = useState('');
+  const [teamMembers, setTeamMembers] = useState<string[]>([]);
+
+  const developers = developersQuery.data?.developers ?? [];
+  const projects = projectsQuery.data?.projects ?? [];
+  const teams = teamsQuery.data ?? [];
+
+  const filteredDevelopers = useMemo(
+    () =>
+      developers.filter((developer) =>
+        developer
+          .toLowerCase()
+          .includes(developerSearch.toLowerCase()),
+      ),
+    [developers, developerSearch],
+  );
+
+  const filteredProjects = useMemo(
+    () =>
+      projects.filter((project) =>
+        project
+          .toLowerCase()
+          .includes(projectSearch.toLowerCase()),
+      ),
+    [projects, projectSearch],
+  );
+
+  const filteredTeams = useMemo(() => {
+    let result = teams;
+
+    if (teamSearch) {
+      result = result.filter((team) =>
+        team.name
+          .toLowerCase()
+          .includes(teamSearch.toLowerCase()),
+      );
+    }
+
+    if (projectFilter) {
+      result = result.filter((team) =>
+        team.projects?.includes(projectFilter),
+      );
+    }
+
+    return result;
+  }, [teams, teamSearch, projectFilter]);
+
+  const createMutation = useMutation({
+    mutationFn: createTeam,
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['teams'],
+      });
+
+      closeTeamDialog();
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({
+      teamId,
+      name,
+      members,
+    }: {
+      teamId: number;
+      name: string;
+      members: string[];
+    }) =>
+      updateTeam(teamId, {
+        name,
+        members,
+      }),
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['teams'],
+      });
+
+      closeTeamDialog();
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteTeam,
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['teams'],
+      });
+    },
+  });
+
+  const openCreateTeam = () => {
+    setEditingTeam(null);
+    setTeamName('');
+    setTeamMembers([]);
+    setTeamDialogOpen(true);
+  };
+
+  const openEditTeam = (team: Team) => {
+    setEditingTeam(team);
+    setTeamName(team.name);
+    setTeamMembers([...team.members]);
+    setTeamDialogOpen(true);
+  };
+
+  const closeTeamDialog = () => {
+    setTeamDialogOpen(false);
+    setEditingTeam(null);
+    setTeamName('');
+    setTeamMembers([]);
+  };
+
+  const handleSaveTeam = () => {
+    if (!teamName.trim()) {
+      return;
+    }
+
+    if (editingTeam) {
+      updateMutation.mutate({
+        teamId: editingTeam.id,
+        name: teamName.trim(),
+        members: teamMembers,
+      });
+
+      return;
+    }
+
+    createMutation.mutate({
+      name: teamName.trim(),
+      members: teamMembers,
+    });
+  };
+
+  const handleDeleteTeam = (team: Team) => {
+    if (
+      window.confirm(
+        `Delete team "${team.name}"?`,
+      )
+    ) {
+      deleteMutation.mutate(team.id);
+    }
+  };
+
+  if (
+    developersQuery.isLoading ||
+    projectsQuery.isLoading ||
+    teamsQuery.isLoading
+  ) {
+    return <LoadingSpinner />;
+  }
+
+  if (
+    developersQuery.error ||
+    projectsQuery.error ||
+    teamsQuery.error
+  ) {
+    return (
+      <ErrorPanel message="Unable to load Gerrit Dashboard data." />
+    );
+  }
+
+  return (
+    <Box>
+      <Stack spacing={3}>
+        <Stack>
+          <Typography variant="h4">
+            Gerrit Dashboard
+          </Typography>
+
+          <Typography color="text.secondary">
+            Overview of Gerrit activity and system metrics.
+          </Typography>
+        </Stack>
+
+        {/* Counters stay unchanged */}
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={4}>
+            <MetricCard
+              title="Total developers"
+              value={developers.length}
+            />
+          </Grid>
+
+          <Grid item xs={12} md={4}>
+            <MetricCard
+              title="Total projects"
+              value={projects.length}
+            />
+          </Grid>
+
+          <Grid item xs={12} md={4}>
+            <MetricCard
+              title="Total teams"
+              value={teams.length}
+            />
+          </Grid>
+        </Grid>
+
+        <SectionCard title="Gerrit resources">
+          <Tabs
+            value={tab}
+            onChange={(_, value) => setTab(value)}
+            sx={{ mb: 3 }}
+          >
+            <Tab label="Developers" />
+            <Tab label="Projects" />
+            <Tab label="Teams" />
+          </Tabs>
+
+          {/* DEVELOPERS */}
+          {tab === 0 && (
+            <Stack spacing={2}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Search developers"
+                value={developerSearch}
+                onChange={(event) =>
+                  setDeveloperSearch(event.target.value)
+                }
+              />
+
+              <Box
+                sx={{
+                  maxHeight: 520,
+                  overflowY: 'auto',
+                  pr: 1,
+                }}
+              >
+                <List sx={{ p: 0 }}>
+                  {filteredDevelopers.map((developer) => (
+                    <ListItem
+                      key={developer}
+                      disableGutters
+                      sx={{
+                        borderBottom:
+                          '1px solid rgba(255,255,255,0.08)',
+                        py: 1.5,
+                      }}
+                    >
+                      <Link
+                        component={RouterLink}
+                        to={`/gerrit/developers/${encodeURIComponent(
+                          developer,
+                        )}`}
+                        underline="hover"
+                        sx={{
+                          fontSize: '1rem',
+                          fontWeight: 500,
+                        }}
+                      >
+                        {developer}
+                      </Link>
+                    </ListItem>
+                  ))}
+                </List>
+              </Box>
+            </Stack>
+          )}
+
+          {/* PROJECTS */}
+          {tab === 1 && (
+            <Stack spacing={2}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Search projects"
+                value={projectSearch}
+                onChange={(event) =>
+                  setProjectSearch(event.target.value)
+                }
+              />
+
+              <Box
+                sx={{
+                  maxHeight: 520,
+                  overflowY: 'auto',
+                  pr: 1,
+                }}
+              >
+                <List sx={{ p: 0 }}>
+                  {filteredProjects.map((project) => (
+                    <ListItem
+                      key={project}
+                      disableGutters
+                      sx={{
+                        borderBottom:
+                          '1px solid rgba(255,255,255,0.08)',
+                        py: 1.5,
+                      }}
+                    >
+                      <Link
+                        component={RouterLink}
+                        to={`/gerrit/projects/${encodeURIComponent(
+                          project,
+                        )}`}
+                        underline="hover"
+                        sx={{
+                          fontSize: '1rem',
+                          fontWeight: 500,
+                        }}
+                      >
+                        {project}
+                      </Link>
+                    </ListItem>
+                  ))}
+                </List>
+              </Box>
+            </Stack>
+          )}
+
+          {/* TEAMS */}
+          {tab === 2 && (
+            <Stack spacing={2}>
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={2}
+              >
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Search teams"
+                  value={teamSearch}
+                  onChange={(event) =>
+                    setTeamSearch(event.target.value)
+                  }
+                />
+
+                <FormControl
+                  size="small"
+                  sx={{ minWidth: 240 }}
+                >
+                  <InputLabel>
+                    Filter by project
+                  </InputLabel>
+
+                  <Select
+                    value={projectFilter}
+                    label="Filter by project"
+                    onChange={(event) =>
+                      setProjectFilter(event.target.value)
+                    }
+                  >
+                    <MenuItem value="">
+                      All projects
+                    </MenuItem>
+
+                    {projects.map((project) => (
+                      <MenuItem
+                        key={project}
+                        value={project}
+                      >
+                        {project}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <Button
+                  variant="contained"
+                  onClick={openCreateTeam}
+                >
+                  Add Team
+                </Button>
+              </Stack>
+
+              <Box
+                sx={{
+                  maxHeight: 520,
+                  overflowY: 'auto',
+                  pr: 1,
+                }}
+              >
+                <List sx={{ p: 0 }}>
+                  {filteredTeams.map((team) => (
+                    <ListItem
+                      key={team.id}
+                      disableGutters
+                      sx={{
+                        borderBottom:
+                          '1px solid rgba(255,255,255,0.08)',
+                        py: 1.5,
+                      }}
+                    >
+                      <Stack
+                        direction={{
+                          xs: 'column',
+                          sm: 'row',
+                        }}
+                        spacing={2}
+                        alignItems={{
+                          xs: 'flex-start',
+                          sm: 'center',
+                        }}
+                        justifyContent="space-between"
+                        width="100%"
+                      >
+                        <Box>
+                          <Typography
+                            sx={{
+                              fontSize: '1rem',
+                              fontWeight: 500,
+                            }}
+                          >
+                            {team.name}
+                          </Typography>
+
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                          >
+                            {team.members.length} members
+                          </Typography>
+                        </Box>
+
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                        >
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() =>
+                              openEditTeam(team)
+                            }
+                          >
+                            Edit
+                          </Button>
+
+                          <Button
+                            size="small"
+                            color="error"
+                            onClick={() =>
+                              handleDeleteTeam(team)
+                            }
+                          >
+                            Delete
+                          </Button>
+
+                          <Button
+                            size="small"
+                            variant="contained"
+                            component={RouterLink}
+                            to={`/gerrit/teams/${team.id}`}
+                          >
+                            Analyze
+                          </Button>
+                        </Stack>
+                      </Stack>
+                    </ListItem>
+                  ))}
+                </List>
+              </Box>
+            </Stack>
+          )}
+        </SectionCard>
+      </Stack>
+
+      {/* TEAM CREATE / EDIT DIALOG */}
+      <Dialog
+        open={teamDialogOpen}
+        onClose={closeTeamDialog}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>
+          {editingTeam ? 'Edit team' : 'Add team'}
+        </DialogTitle>
+
+        <DialogContent>
+          <Stack spacing={3} sx={{ mt: 1 }}>
+            <TextField
+              fullWidth
+              label="Team name"
+              value={teamName}
+              onChange={(event) =>
+                setTeamName(event.target.value)
+              }
+            />
+
+            <FormControl fullWidth>
+              <InputLabel>Members</InputLabel>
+
+              <Select
+                multiple
+                value={teamMembers}
+                label="Members"
+                onChange={(event) =>
+                  setTeamMembers(
+                    typeof event.target.value === 'string'
+                      ? event.target.value.split(',')
+                      : event.target.value,
+                  )
+                }
+                renderValue={(selected) =>
+                  selected.join(', ')
+                }
+              >
+                {developers.map((developer) => (
+                  <MenuItem
+                    key={developer}
+                    value={developer}
+                  >
+                    {developer}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Stack>
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={closeTeamDialog}>
+            Cancel
+          </Button>
+
+          <Button
+            variant="contained"
+            onClick={handleSaveTeam}
+            disabled={
+              !teamName.trim() ||
+              createMutation.isPending ||
+              updateMutation.isPending
+            }
+          >
+            {editingTeam ? 'Save changes' : 'Create team'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+};
+
+export default GerritDashboardPage;

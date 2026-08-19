@@ -98,6 +98,7 @@ const ProjectDetailPage: React.FC = () => {
       return fetchProject(projectName, params);
     },
     enabled: Boolean(projectName),
+    staleTime: 5 * 60 * 1000
   });
 
   const data = detailQuery.data;

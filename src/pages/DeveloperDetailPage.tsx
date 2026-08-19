@@ -114,6 +114,7 @@ const DeveloperDetailPage: React.FC = () => {
       });
     },
     enabled: Boolean(developerName),
+    staleTime: 5 * 60 * 1000
   });
 
   const topicsQuery = useQuery<string[]>({
@@ -125,6 +126,7 @@ const DeveloperDetailPage: React.FC = () => {
       return fetchDeveloperTopics(developerName, draftRepositories);
     },
     enabled: Boolean(developerName) && draftRepositories.length > 0 && topicMenuOpen,
+    staleTime: 5 * 60 * 1000
   });
 
   const topicOptions = topicsQuery.data ?? [];

@@ -29,7 +29,7 @@ const SignInPage: React.FC = () => {
         <Stack spacing={3}>
           <Stack spacing={0.5}>
             <Typography variant="h4">Sign in</Typography>
-            <Typography color="text.secondary">Access the KPI dashboard</Typography>
+            <Typography color="text.secondary">Access the KPI Gerrit Dashboard</Typography>
           </Stack>
 
           <TextField

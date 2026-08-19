@@ -181,7 +181,7 @@ const JiraAnalysisPage: React.FC = () => {
   const [analyzedIssueKey, setAnalyzedIssueKey] = useState('');
   const [showRawJson, setShowRawJson] = useState(false);
 
-  const projectsQuery = useQuery({ queryKey: ['jira-projects'], queryFn: fetchJiraProjects });
+  const projectsQuery = useQuery({ queryKey: ['jira-projects'], queryFn: fetchJiraProjects ,staleTime: 5 * 60 * 1000});
   const projects = projectsQuery.data?.projects ?? [];
 
   const boardsQuery = useQuery<JiraBoard[]>({
@@ -192,6 +192,7 @@ const JiraAnalysisPage: React.FC = () => {
       return response.boards;
     },
     enabled: Boolean(draftProject),
+    staleTime: 5 * 60 * 1000
   });
 
   const performanceQuery = useQuery<JiraPerformanceResponse | undefined>({
@@ -201,6 +202,7 @@ const JiraAnalysisPage: React.FC = () => {
       return fetchJiraPerformance(appliedProject.key, appliedBoards.map((board) => board.id));
     },
     enabled: Boolean(appliedProject),
+    staleTime: 5 * 60 * 1000
   });
 
   const issueQuery = useQuery<JiraIssueResponse | undefined>({
@@ -210,6 +212,7 @@ const JiraAnalysisPage: React.FC = () => {
       return fetchJiraIssue(analyzedIssueKey);
     },
     enabled: Boolean(analyzedIssueKey),
+    staleTime: 5 * 60 * 1000
   });
 
   if (projectsQuery.isLoading) {

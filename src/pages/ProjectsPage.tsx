@@ -8,7 +8,7 @@ import ErrorPanel from '@/components/ui/ErrorPanel';
 import SectionCard from '@/components/ui/SectionCard';
 
 const ProjectsPage: React.FC = () => {
-  const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
+  const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects ,staleTime: 5 * 60 * 1000});
   const [search, setSearch] = useState('');
 
   const projects = projectsQuery.data?.projects ?? [];

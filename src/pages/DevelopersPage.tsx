@@ -8,7 +8,7 @@ import ErrorPanel from '@/components/ui/ErrorPanel';
 import SectionCard from '@/components/ui/SectionCard';
 
 const DevelopersPage: React.FC = () => {
-  const developersQuery = useQuery({ queryKey: ['developers'], queryFn: fetchDevelopers });
+  const developersQuery = useQuery({ queryKey: ['developers'], queryFn: fetchDevelopers ,staleTime: 5 * 60 * 1000});
   const [search, setSearch] = useState('');
 
   const developers = developersQuery.data?.developers ?? [];

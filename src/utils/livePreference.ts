@@ -1,4 +1,4 @@
-const LIVE_DEFAULT_STORAGE_KEY = 'dashboard.live-default';
+const LIVE_DEFAULT_STORAGE_KEY = 'GerritDashboard.live-default';
 
 export const getDefaultLiveValue = (): boolean => {
   if (typeof window === 'undefined') {
