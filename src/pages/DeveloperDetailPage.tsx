@@ -571,7 +571,24 @@ const DeveloperDetailPage: React.FC = () => {
             </SectionCard>
           </Grid>
         </Grid>
-
+        <SectionCard title="File hotspots">
+          <MetricsTable
+            columns={[
+              { key: 'file', label: 'File' },
+              { key: 'changeCount', label: 'Changes' },
+              { key: 'patchsetCount', label: 'Patchsets' },
+              { key: 'linesAdded', label: 'Lines added' },
+              { key: 'linesDeleted', label: 'Lines deleted' },
+            ]}
+            rows={(metrics.file_hotspots ?? []).map((file) => ({
+              file: file.file,
+              changeCount: file.change_count,
+              patchsetCount: file.patchset_count,
+              linesAdded: file.lines_added,
+              linesDeleted: file.lines_deleted,
+            }))}
+          />
+          </SectionCard>
         <Grid container spacing={3}>
           <Grid item xs={12}>
             <SectionCard title="Collaboration network">

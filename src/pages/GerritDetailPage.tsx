@@ -12,6 +12,7 @@ import {
   TableBody,
   TableCell,
   TableContainer,
+  TableSortLabel,
   TableHead,
   TableRow,
   Typography,
@@ -27,6 +28,7 @@ import SectionCard from '@/components/ui/SectionCard';
 import FilterBar from '@/components/ui/Filters/FilterBar';
 import ChartCard from '@/components/ui/ChartCard';
 import RelationshipGraph from '@/components/ui/RelationshipGraph';
+import MetricsTable from '@/components/ui/MetricsTable';
 import { ProjectDetailResponse } from '@/types/projects';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { buildProjectRelationshipGraph } from '@/utils/relationshipGraph';
@@ -63,7 +65,11 @@ const ProjectDetailPage: React.FC = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [live, setLive] = useState(getDefaultLiveValue);
+  const [hotspotSortBy, setHotspotSortBy] = useState<
+    'file' | 'change_count' | 'patchset_count' | 'lines_added' | 'lines_deleted'
+  >('change_count');
 
+  const [hotspotSortDirection, setHotspotSortDirection] = useState<'asc' | 'desc'>('desc');
   const [draftDevelopers, setDraftDevelopers] = useState<string[]>([]);
   const [draftTopics, setDraftTopics] = useState<string[]>([]);
   const [draftStartDate, setDraftStartDate] = useState('');
@@ -127,7 +133,6 @@ const ProjectDetailPage: React.FC = () => {
   const data = detailQuery.data;
   const developerOptions = data?.developers ?? [];
   const topicOptions = data?.topics ?? [];
-
   const interactionGraph = useMemo(
     () => (data ? buildProjectRelationshipGraph(data) : { nodes: [], edges: [] }),
     [data],
@@ -162,7 +167,40 @@ const ProjectDetailPage: React.FC = () => {
   }, [interactionGraph]);
 
   const developerMetrics = useMemo(() => data?.developer_metrics ?? {}, [data]);
+  const fileHotspotMap = new Map<
+  string,
+  {
+    file: string;
+    change_count: number;
+    patchset_count: number;
+    lines_added: number;
+    lines_deleted: number;
+  }
+>();
 
+Object.values(developerMetrics).forEach((metrics) => {
+  (metrics.file_hotspots ?? []).forEach((hotspot) => {
+    const existing = fileHotspotMap.get(hotspot.file);
+
+    if (existing) {
+      existing.change_count += hotspot.change_count;
+      existing.patchset_count += hotspot.patchset_count;
+      existing.lines_added += hotspot.lines_added;
+      existing.lines_deleted += hotspot.lines_deleted;
+    } else {
+      fileHotspotMap.set(hotspot.file, {
+        file: hotspot.file,
+        change_count: hotspot.change_count,
+        patchset_count: hotspot.patchset_count,
+        lines_added: hotspot.lines_added,
+        lines_deleted: hotspot.lines_deleted,
+      });
+    }
+  });
+});
+
+const fileHotspots = Array.from(fileHotspotMap.values())
+  .sort((a, b) => b.change_count - a.change_count);
   const projectOverview = useMemo(() => {
     const statusTotals = new Map<string, number>();
     const repoTotals = new Map<
@@ -215,7 +253,6 @@ const ProjectDetailPage: React.FC = () => {
         });
       });
     });
-
     const topStatuses = Array.from(statusTotals.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
@@ -302,7 +339,35 @@ const ProjectDetailPage: React.FC = () => {
     setEndDate(draftEndDate);
     setLive(draftLive);
   };
+    const sortedFileHotspots = [...fileHotspots].sort((a, b) => {
+      const left = a[hotspotSortBy];
+      const right = b[hotspotSortBy];
 
+      if (typeof left === 'string' && typeof right === 'string') {
+        return hotspotSortDirection === 'asc'
+          ? left.localeCompare(right)
+          : right.localeCompare(left);
+      }
+
+      const leftNumber = Number(left);
+      const rightNumber = Number(right);
+
+      return hotspotSortDirection === 'asc'
+        ? leftNumber - rightNumber
+        : rightNumber - leftNumber;
+    });
+    const handleHotspotSort = (
+    column: 'file' | 'change_count' | 'patchset_count' | 'lines_added' | 'lines_deleted'
+  ) => {
+    if (hotspotSortBy === column) {
+      setHotspotSortDirection((current) =>
+        current === 'asc' ? 'desc' : 'asc'
+      );
+    } else {
+      setHotspotSortBy(column);
+      setHotspotSortDirection('desc');
+    }
+  };
   const handleResetFilters = () => {
     setDraftDevelopers(selectedDevelopers);
     setDraftTopics(selectedTopics);
@@ -380,7 +445,111 @@ const ProjectDetailPage: React.FC = () => {
             ))}
           </Grid>
         </SectionCard>
+<SectionCard title="File hotspots">
+  <TableContainer component={Paper} sx={{ bgcolor: 'background.paper' }}>
+    <Table size="small">
+      <TableHead>
+        <TableRow>
+          <TableCell>
+            <TableSortLabel
+              active={hotspotSortBy === 'file'}
+              direction={
+                hotspotSortBy === 'file'
+                  ? hotspotSortDirection
+                  : 'asc'
+              }
+              onClick={() => handleHotspotSort('file')}
+            >
+              File
+            </TableSortLabel>
+          </TableCell>
 
+          <TableCell align="right">
+            <TableSortLabel
+              active={hotspotSortBy === 'change_count'}
+              direction={
+                hotspotSortBy === 'change_count'
+                  ? hotspotSortDirection
+                  : 'desc'
+              }
+              onClick={() => handleHotspotSort('change_count')}
+            >
+              Change count
+            </TableSortLabel>
+          </TableCell>
+
+          <TableCell align="right">
+            <TableSortLabel
+              active={hotspotSortBy === 'patchset_count'}
+              direction={
+                hotspotSortBy === 'patchset_count'
+                  ? hotspotSortDirection
+                  : 'desc'
+              }
+              onClick={() => handleHotspotSort('patchset_count')}
+            >
+              Patchset count
+            </TableSortLabel>
+          </TableCell>
+
+          <TableCell align="right">
+            <TableSortLabel
+              active={hotspotSortBy === 'lines_added'}
+              direction={
+                hotspotSortBy === 'lines_added'
+                  ? hotspotSortDirection
+                  : 'desc'
+              }
+              onClick={() => handleHotspotSort('lines_added')}
+            >
+              Lines added
+            </TableSortLabel>
+          </TableCell>
+
+          <TableCell align="right">
+            <TableSortLabel
+              active={hotspotSortBy === 'lines_deleted'}
+              direction={
+                hotspotSortBy === 'lines_deleted'
+                  ? hotspotSortDirection
+                  : 'desc'
+              }
+              onClick={() => handleHotspotSort('lines_deleted')}
+            >
+              Lines deleted
+            </TableSortLabel>
+          </TableCell>
+        </TableRow>
+      </TableHead>
+
+      <TableBody>
+        {sortedFileHotspots.map((file) => (
+          <TableRow key={file.file} hover>
+            <TableCell sx={{ fontFamily: 'monospace' }}>
+              {file.file}
+            </TableCell>
+
+            <TableCell align="right">
+              {file.change_count}
+            </TableCell>
+
+            <TableCell align="right">
+              {file.patchset_count}
+            </TableCell>
+
+            <TableCell align="right">
+              {file.lines_added}
+            </TableCell>
+
+            <TableCell align="right">
+              {file.lines_deleted}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  </TableContainer>
+</SectionCard>
         <SectionCard title="Developer contribution snapshot">
           <TableContainer component={Paper} sx={{ bgcolor: 'background.paper' }}>
             <Table size="small">

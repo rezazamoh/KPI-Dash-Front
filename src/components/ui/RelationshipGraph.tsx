@@ -699,7 +699,7 @@ const RelationshipGraph: React.FC<
             sx={{
               width: 240,
               minWidth: 240,
-              maxHeight: 480,
+              maxHeight: 512,
               overflowY: 'auto',
               borderRight:
                 '1px solid rgba(255,255,255,0.08)',
