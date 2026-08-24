@@ -47,13 +47,13 @@ const GerritDashboardPage: React.FC = () => {
 
   const developersQuery = useQuery({
     queryKey: ['developers'],
-    queryFn: fetchDevelopers,
-    staleTime: 5 * 60 * 1000
+    queryFn: () => fetchDevelopers(),
+    staleTime: 5 * 60 * 1000,
   });
 
   const projectsQuery = useQuery({
     queryKey: ['projects'],
-    queryFn: fetchProjects,
+    queryFn: () => fetchProjects(),
     staleTime: 5 * 60 * 1000
   });
 
@@ -167,6 +167,26 @@ const GerritDashboardPage: React.FC = () => {
       });
     },
   });
+  
+  const refreshDevelopers = async () => {
+    try {
+      const data = await fetchDevelopers(true);
+
+      queryClient.setQueryData(['developers'], data);
+    } catch (error) {
+      console.error('Failed to refresh developers:', error);
+    }
+  };
+
+  const refreshProjects = async () => {
+    try {
+      const data = await fetchProjects(true);
+
+      queryClient.setQueryData(['projects'], data);
+    } catch (error) {
+      console.error('Failed to refresh projects:', error);
+    }
+  };
 
   const openCreateTeam = () => {
     setEditingTeam(null);
@@ -306,22 +326,20 @@ const GerritDashboardPage: React.FC = () => {
                   pr: 1,
                 }}
               >
-                <List sx={{ p: 0 }}>
-                  {filteredDevelopers.map((developer) => (
+              <List sx={{ p: 0 }}>
+                {filteredDevelopers.length > 0 ? (
+                  filteredDevelopers.map((developer) => (
                     <ListItem
                       key={developer}
                       disableGutters
                       sx={{
-                        borderBottom:
-                          '1px solid rgba(255,255,255,0.08)',
+                        borderBottom: '1px solid rgba(255,255,255,0.08)',
                         py: 1.5,
                       }}
                     >
                       <Link
                         component={RouterLink}
-                        to={`/gerrit/developers/${encodeURIComponent(
-                          developer,
-                        )}`}
+                        to={`/gerrit/developers/${encodeURIComponent(developer)}`}
                         underline="hover"
                         sx={{
                           fontSize: '1rem',
@@ -331,8 +349,23 @@ const GerritDashboardPage: React.FC = () => {
                         {developer}
                       </Link>
                     </ListItem>
-                  ))}
-                </List>
+                  ))
+                ) : (
+                  <Box sx={{ py: 3, textAlign: 'center' }}>
+                    <Typography color="text.secondary" sx={{ mb: 1 }}>
+                      Couldn't find what you're looking for?
+                    </Typography>
+
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={refreshDevelopers}
+                    >
+                      Refresh database
+                    </Button>
+                  </Box>
+                )}
+              </List>
               </Box>
             </Stack>
           )}
@@ -357,22 +390,20 @@ const GerritDashboardPage: React.FC = () => {
                   pr: 1,
                 }}
               >
-                <List sx={{ p: 0 }}>
-                  {filteredProjects.map((project) => (
+              <List sx={{ p: 0 }}>
+                {filteredProjects.length > 0 ? (
+                  filteredProjects.map((project) => (
                     <ListItem
                       key={project}
                       disableGutters
                       sx={{
-                        borderBottom:
-                          '1px solid rgba(255,255,255,0.08)',
+                        borderBottom: '1px solid rgba(255,255,255,0.08)',
                         py: 1.5,
                       }}
                     >
                       <Link
                         component={RouterLink}
-                        to={`/gerrit/projects/${encodeURIComponent(
-                          project,
-                        )}`}
+                        to={`/gerrit/projects/${encodeURIComponent(project)}`}
                         underline="hover"
                         sx={{
                           fontSize: '1rem',
@@ -382,8 +413,23 @@ const GerritDashboardPage: React.FC = () => {
                         {project}
                       </Link>
                     </ListItem>
-                  ))}
-                </List>
+                  ))
+                ) : (
+                  <Box sx={{ py: 3, textAlign: 'center' }}>
+                    <Typography color="text.secondary" sx={{ mb: 1 }}>
+                      Couldn't find what you're looking for?
+                    </Typography>
+
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={refreshProjects}
+                    >
+                      Refresh database
+                    </Button>
+                  </Box>
+                )}
+              </List>
               </Box>
             </Stack>
           )}

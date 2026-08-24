@@ -26,8 +26,8 @@ const buildQueryString = (params: Record<string, unknown>) => {
   return queryString ? `?${queryString}` : '';
 };
 
-export const fetchDevelopers = async (): Promise<DeveloperListResponse> => {
-  const response = await apiClient.get('/gerrit/developers');
+export const fetchDevelopers = async (live = false): Promise<DeveloperListResponse> => {
+  const response = await apiClient.get('/gerrit/developers',{params: { live },});
   return response.data;
 };
 

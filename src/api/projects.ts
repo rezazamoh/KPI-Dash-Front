@@ -1,8 +1,8 @@
 import { ProjectListResponse, ProjectDetailResponse } from '@/types/projects';
 import { apiClient } from './client';
 
-export const fetchProjects = async (): Promise<ProjectListResponse> => {
-  const response = await apiClient.get('gerrit/projects');
+export const fetchProjects = async (live = false): Promise<ProjectListResponse> => {
+  const response = await apiClient.get('gerrit/projects',{params: { live },});
   return response.data;
 };
 
