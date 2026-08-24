@@ -18,7 +18,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useParams } from 'react-router-dom';
+import { Link as RouterLink, useParams, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchProject } from '@/api/projects';
 import { fetchTeamPerformance } from '@/api/teams';
@@ -49,8 +49,10 @@ const formatDateLabel = (value: string | null | undefined) => {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
 
+
 const sumPeople = (people: Array<{ username: string; count: number }> | null | undefined) =>
   people?.reduce((sum, item) => sum + item.count, 0) ?? 0;
+
 
 const ProjectDetailPage: React.FC = () => {
   const { project, team } = useParams<{
@@ -58,19 +60,22 @@ const ProjectDetailPage: React.FC = () => {
     team?: string;
   }>();
 
+  const location = useLocation();
+
+  const developersFromQuery = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.getAll('username');
+  }, [location.search]);
   const isTeam = Boolean(team);
   const name = team ?? project ?? '';
-  const [selectedDevelopers, setSelectedDevelopers] = useState<string[]>([]);
+  const [selectedDevelopers, setSelectedDevelopers] =
+    useState<string[]>(developersFromQuery);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [live, setLive] = useState(getDefaultLiveValue);
-  const [hotspotSortBy, setHotspotSortBy] = useState<
-    'file' | 'change_count' | 'patchset_count' | 'lines_added' | 'lines_deleted'
-  >('change_count');
 
-  const [hotspotSortDirection, setHotspotSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [draftDevelopers, setDraftDevelopers] = useState<string[]>([]);
+  const [draftDevelopers, setDraftDevelopers] = useState<string[]>(developersFromQuery);
   const [draftTopics, setDraftTopics] = useState<string[]>([]);
   const [draftStartDate, setDraftStartDate] = useState('');
   const [draftEndDate, setDraftEndDate] = useState('');
@@ -199,8 +204,8 @@ Object.values(developerMetrics).forEach((metrics) => {
   });
 });
 
-const fileHotspots = Array.from(fileHotspotMap.values())
-  .sort((a, b) => b.change_count - a.change_count);
+  const fileHotspots = Array.from(fileHotspotMap.values())
+    .sort((a, b) => b.change_count - a.change_count);
   const projectOverview = useMemo(() => {
     const statusTotals = new Map<string, number>();
     const repoTotals = new Map<
@@ -333,41 +338,13 @@ const fileHotspots = Array.from(fileHotspotMap.values())
   }
 
   const handleApplyFilters = () => {
-    setSelectedDevelopers(draftDevelopers);
-    setSelectedTopics(draftTopics);
+    setSelectedDevelopers([...draftDevelopers]);
+    setSelectedTopics([...draftTopics]);
     setStartDate(draftStartDate);
     setEndDate(draftEndDate);
     setLive(draftLive);
   };
-    const sortedFileHotspots = [...fileHotspots].sort((a, b) => {
-      const left = a[hotspotSortBy];
-      const right = b[hotspotSortBy];
 
-      if (typeof left === 'string' && typeof right === 'string') {
-        return hotspotSortDirection === 'asc'
-          ? left.localeCompare(right)
-          : right.localeCompare(left);
-      }
-
-      const leftNumber = Number(left);
-      const rightNumber = Number(right);
-
-      return hotspotSortDirection === 'asc'
-        ? leftNumber - rightNumber
-        : rightNumber - leftNumber;
-    });
-    const handleHotspotSort = (
-    column: 'file' | 'change_count' | 'patchset_count' | 'lines_added' | 'lines_deleted'
-  ) => {
-    if (hotspotSortBy === column) {
-      setHotspotSortDirection((current) =>
-        current === 'asc' ? 'desc' : 'asc'
-      );
-    } else {
-      setHotspotSortBy(column);
-      setHotspotSortDirection('desc');
-    }
-  };
   const handleResetFilters = () => {
     setDraftDevelopers(selectedDevelopers);
     setDraftTopics(selectedTopics);
@@ -445,111 +422,26 @@ const fileHotspots = Array.from(fileHotspotMap.values())
             ))}
           </Grid>
         </SectionCard>
-<SectionCard title="File hotspots">
-  <TableContainer component={Paper} sx={{ bgcolor: 'background.paper' }}>
-    <Table size="small">
-      <TableHead>
-        <TableRow>
-          <TableCell>
-            <TableSortLabel
-              active={hotspotSortBy === 'file'}
-              direction={
-                hotspotSortBy === 'file'
-                  ? hotspotSortDirection
-                  : 'asc'
-              }
-              onClick={() => handleHotspotSort('file')}
-            >
-              File
-            </TableSortLabel>
-          </TableCell>
-
-          <TableCell align="right">
-            <TableSortLabel
-              active={hotspotSortBy === 'change_count'}
-              direction={
-                hotspotSortBy === 'change_count'
-                  ? hotspotSortDirection
-                  : 'desc'
-              }
-              onClick={() => handleHotspotSort('change_count')}
-            >
-              Change count
-            </TableSortLabel>
-          </TableCell>
-
-          <TableCell align="right">
-            <TableSortLabel
-              active={hotspotSortBy === 'patchset_count'}
-              direction={
-                hotspotSortBy === 'patchset_count'
-                  ? hotspotSortDirection
-                  : 'desc'
-              }
-              onClick={() => handleHotspotSort('patchset_count')}
-            >
-              Patchset count
-            </TableSortLabel>
-          </TableCell>
-
-          <TableCell align="right">
-            <TableSortLabel
-              active={hotspotSortBy === 'lines_added'}
-              direction={
-                hotspotSortBy === 'lines_added'
-                  ? hotspotSortDirection
-                  : 'desc'
-              }
-              onClick={() => handleHotspotSort('lines_added')}
-            >
-              Lines added
-            </TableSortLabel>
-          </TableCell>
-
-          <TableCell align="right">
-            <TableSortLabel
-              active={hotspotSortBy === 'lines_deleted'}
-              direction={
-                hotspotSortBy === 'lines_deleted'
-                  ? hotspotSortDirection
-                  : 'desc'
-              }
-              onClick={() => handleHotspotSort('lines_deleted')}
-            >
-              Lines deleted
-            </TableSortLabel>
-          </TableCell>
-        </TableRow>
-      </TableHead>
-
-      <TableBody>
-        {sortedFileHotspots.map((file) => (
-          <TableRow key={file.file} hover>
-            <TableCell sx={{ fontFamily: 'monospace' }}>
-              {file.file}
-            </TableCell>
-
-            <TableCell align="right">
-              {file.change_count}
-            </TableCell>
-
-            <TableCell align="right">
-              {file.patchset_count}
-            </TableCell>
-
-            <TableCell align="right">
-              {file.lines_added}
-            </TableCell>
-
-            <TableCell align="right">
-              {file.lines_deleted}
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  </TableContainer>
-</SectionCard>
+        
+        <SectionCard title="File hotspots">
+          <MetricsTable
+            columns={[
+              { key: 'file', label: 'File' },
+              { key: 'changeCount', label: 'Changes' },
+              { key: 'patchsetCount', label: 'Patchsets' },
+              { key: 'linesAdded', label: 'Lines added' },
+              { key: 'linesDeleted', label: 'Lines deleted' },
+            ]}
+            rows={(fileHotspots ?? []).map((file) => ({
+              file: file.file,
+              changeCount: file.change_count,
+              patchsetCount: file.patchset_count,
+              linesAdded: file.lines_added,
+              linesDeleted: file.lines_deleted,
+            }))}
+          />
+        </SectionCard>
+        
         <SectionCard title="Developer contribution snapshot">
           <TableContainer component={Paper} sx={{ bgcolor: 'background.paper' }}>
             <Table size="small">
