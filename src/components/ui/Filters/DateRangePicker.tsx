@@ -7,13 +7,25 @@ interface DateRangePickerProps {
   onEndDateChange: (value: string) => void;
 }
 
-const DateRangePicker: React.FC<DateRangePickerProps> = ({ startDate, endDate, onStartDateChange, onEndDateChange }) => (
+const DateRangePicker: React.FC<DateRangePickerProps> = ({
+  startDate,
+  endDate,
+  onStartDateChange,
+  onEndDateChange,
+}) => (
   <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
     <TextField
       label="Start date"
       type="date"
       value={startDate}
-      onChange={(event) => onStartDateChange(event.target.value)}
+      onChange={(event) => {
+        const newStart = event.target.value;
+        onStartDateChange(newStart);
+
+        if (endDate && newStart && endDate < newStart) {
+          onEndDateChange(newStart);
+        }
+      }}
       InputLabelProps={{ shrink: true }}
       size="small"
     />
@@ -21,6 +33,7 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({ startDate, endDate, o
       label="End date"
       type="date"
       value={endDate}
+      min={startDate || undefined}
       onChange={(event) => onEndDateChange(event.target.value)}
       InputLabelProps={{ shrink: true }}
       size="small"

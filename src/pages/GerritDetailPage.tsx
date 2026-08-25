@@ -3,19 +3,16 @@ import {
   Chip,
   Divider,
   Button,
+  Paper,
+  ButtonGroup,
   Collapse,
   Grid,
   Link,
-  Paper,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Typography,
 } from '@mui/material';
+import TableChartIcon from '@mui/icons-material/TableChart';
+import BarChartIcon from '@mui/icons-material/BarChart';
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useLocation, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -28,7 +25,7 @@ import FilterBar from '@/components/ui/Filters/FilterBar';
 import ChartCard from '@/components/ui/ChartCard';
 import RelationshipGraph from '@/components/ui/RelationshipGraph';
 import MetricsTable from '@/components/ui/MetricsTable';
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { buildProjectRelationshipGraph } from '@/utils/relationshipGraph';
 import { getDefaultLiveValue } from '@/utils/livePreference';
 import { Period } from '@/types/periods';
@@ -129,6 +126,8 @@ const ProjectDetailPage: React.FC = () => {
   const [draftLive, setDraftLive] = useState(getDefaultLiveValue);
   const [topicMenuOpen, setTopicMenuOpen] = useState(false);
   const [showRawJson, setShowRawJson] = useState(false);
+  const [comparisonView, setComparisonView] = useState<'table' | 'chart'>('table');
+  const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
 
   useEffect(() => {
     setDraftDevelopers(selectedDevelopers);
@@ -512,14 +511,20 @@ const ProjectDetailPage: React.FC = () => {
               metrics.change_count ?? 0,
             patchsets:
               metrics.average_patchsets ?? 0,
+            patchsetsRaw:
+              metrics.average_patchsets ?? 0,
             failureRate: formatPercent(
               metrics.build_failure_rate
                 ?.overall_failure_rate,
             ),
+            failureRateRaw:
+              metrics.build_failure_rate?.overall_failure_rate ?? null,
             leadTime:
               metrics.lead_time?.mean != null
                 ? `${metrics.lead_time.mean.toFixed(1)}h`
                 : '—',
+            leadTimeRaw:
+              metrics.lead_time?.mean ?? null,
             interactions: interactionCount,
           };
         })
@@ -547,13 +552,34 @@ const ProjectDetailPage: React.FC = () => {
         const resultMetrics =
           result?.metrics?.developer_metrics ?? {};
 
-        const changes = Object.values(
-          resultMetrics,
-        ).reduce(
-          (sum: number, metric: any) =>
-            sum + (metric.change_count ?? 0),
-          0,
-        );
+        let totalChanges = 0;
+        let totalPatchsets = 0;
+        let patchsetCount = 0;
+        let failureRateSum = 0;
+        let failureRateCount = 0;
+        let leadTimeSum = 0;
+        let leadTimeCount = 0;
+
+        Object.values(resultMetrics).forEach((metric: any) => {
+          totalChanges += metric.change_count ?? 0;
+
+          if (metric.average_patchsets != null) {
+            totalPatchsets += metric.average_patchsets;
+            patchsetCount++;
+          }
+
+          if (metric.build_failure_rate?.overall_failure_rate != null) {
+            failureRateSum += metric.build_failure_rate.overall_failure_rate;
+            failureRateCount++;
+          }
+
+          if (metric.lead_time?.mean != null) {
+            leadTimeSum += metric.lead_time.mean;
+            leadTimeCount++;
+          }
+        });
+
+        const developerCount = Object.keys(resultMetrics).length;
 
         return {
           period:
@@ -561,13 +587,28 @@ const ProjectDetailPage: React.FC = () => {
             periods[index] ??
             null,
           index,
-          changes,
-          developers:
-            Object.keys(resultMetrics).length,
+          changes: totalChanges,
+          developers: developerCount,
+          avgPatchsets: patchsetCount > 0 ? totalPatchsets / patchsetCount : 0,
+          failureRate: failureRateCount > 0 ? failureRateSum / failureRateCount : 0,
+          leadTime: leadTimeCount > 0 ? leadTimeSum / leadTimeCount : 0,
         };
       },
     );
   }, [periodResults, periods]);
+
+  const chartData = useMemo(
+    () =>
+      comparisonRows.map((row) => ({
+        period: formatPeriodLabel(row.period, row.index),
+        changes: row.changes,
+        developers: row.developers,
+        avgPatchsets: row.avgPatchsets,
+        failureRate: row.failureRate,
+        leadTime: row.leadTime,
+      })),
+    [comparisonRows],
+  );
 
   const filterSummary = useMemo(() => {
     const activeDevelopers =
@@ -749,13 +790,38 @@ const ProjectDetailPage: React.FC = () => {
         {periodResults.length > 1 && (
           <SectionCard title="Period comparison">
             <Stack spacing={2}>
-              <Typography
-                color="text.secondary"
-                variant="body2"
+              <Stack
+                direction="row"
+                justifyContent="space-between"
+                alignItems="center"
+                flexWrap="wrap"
+                spacing={1}
               >
-                Compare the selected periods or choose one
-                period to inspect in detail.
-              </Typography>
+                <Typography
+                  color="text.secondary"
+                  variant="body2"
+                >
+                  Compare the selected periods or choose one
+                  period to inspect in detail.
+                </Typography>
+
+                <ButtonGroup size="small" variant="outlined">
+                  <Button
+                    startIcon={<TableChartIcon />}
+                    color={comparisonView === 'table' ? 'primary' : 'inherit'}
+                    onClick={() => setComparisonView('table')}
+                  >
+                    Table
+                  </Button>
+                  <Button
+                    startIcon={<BarChartIcon />}
+                    color={comparisonView === 'chart' ? 'primary' : 'inherit'}
+                    onClick={() => setComparisonView('chart')}
+                  >
+                    Chart
+                  </Button>
+                </ButtonGroup>
+              </Stack>
 
               <Stack
                 direction="row"
@@ -789,32 +855,82 @@ const ProjectDetailPage: React.FC = () => {
                 ))}
               </Stack>
 
-              <MetricsTable
-                columns={[
-                  {
-                    key: 'period',
-                    label: 'Period',
-                  },
-                  {
-                    key: 'changes',
-                    label: 'Changes',
-                  },
-                  {
-                    key: 'developers',
-                    label: 'Developers',
-                  },
-                ]}
-                rows={comparisonRows.map(
-                  (row) => ({
-                    period: formatPeriodLabel(
-                      row.period,
-                      row.index,
-                    ),
+              {comparisonView === 'table' ? (
+                <MetricsTable
+                  columns={[
+                    { key: 'period', label: 'Period' },
+                    { key: 'changes', label: 'Changes' },
+                    { key: 'developers', label: 'Developers' },
+                    { key: 'avgPatchsets', label: 'Avg patchsets' },
+                    { key: 'failureRate', label: 'Failure rate' },
+                    { key: 'leadTime', label: 'Lead time' },
+                  ]}
+                  rows={comparisonRows.map((row) => ({
+                    period: formatPeriodLabel(row.period, row.index),
                     changes: row.changes,
                     developers: row.developers,
-                  }),
-                )}
-              />
+                    avgPatchsets: row.avgPatchsets.toFixed(2),
+                    failureRate: `${row.failureRate.toFixed(1)}%`,
+                    leadTime: row.leadTime > 0 ? `${row.leadTime.toFixed(2)} h` : '—',
+                  }))}
+                />
+              ) : (
+                <Stack spacing={3}>
+                  <Stack direction="row" justifyContent="flex-end">
+                    <ButtonGroup size="small" variant="outlined">
+                      <Button
+                        color={chartType === 'bar' ? 'primary' : 'inherit'}
+                        onClick={() => setChartType('bar')}
+                      >
+                        Bar
+                      </Button>
+                      <Button
+                        color={chartType === 'line' ? 'primary' : 'inherit'}
+                        onClick={() => setChartType('line')}
+                      >
+                        Line
+                      </Button>
+                    </ButtonGroup>
+                  </Stack>
+
+                  {([
+                    { key: 'changes', label: 'Changes', color: '#00bcd4' },
+                    { key: 'developers', label: 'Developers', color: '#9c27b0' },
+                    { key: 'avgPatchsets', label: 'Avg patchsets per change', color: '#4caf50' },
+                    { key: 'failureRate', label: 'Failure rate (%)', color: '#f44336' },
+                    { key: 'leadTime', label: 'Lead time (h)', color: '#ff9800' },
+                  ] as const).map(({ key, label, color }) => (
+                    <Box key={key}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        {label}
+                      </Typography>
+                      <Box sx={{ width: '100%', overflowX: 'auto' }}>
+                        <Box sx={{ minWidth: Math.max(300, chartData.length * 100) }}>
+                          <ResponsiveContainer width="100%" height={220}>
+                            {chartType === 'bar' ? (
+                              <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                                <XAxis dataKey="period" stroke="#cfd8fc" angle={-20} textAnchor="end" height={60} />
+                                <YAxis stroke="#cfd8fc" />
+                                <Tooltip />
+                                <Bar dataKey={key} fill={color} name={label} />
+                              </BarChart>
+                            ) : (
+                              <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                                <XAxis dataKey="period" stroke="#cfd8fc" angle={-20} textAnchor="end" height={60} />
+                                <YAxis stroke="#cfd8fc" />
+                                <Tooltip />
+                                <Line type="monotone" dataKey={key} stroke={color} name={label} strokeWidth={2} dot={{ r: 4 }} />
+                              </LineChart>
+                            )}
+                          </ResponsiveContainer>
+                        </Box>
+                      </Box>
+                    </Box>
+                  ))}
+                </Stack>
+              )}
             </Stack>
           </SectionCard>
         )}
@@ -901,91 +1017,37 @@ const ProjectDetailPage: React.FC = () => {
         </SectionCard>
 
         <SectionCard title="Developer contribution snapshot">
-          <TableContainer
-            component={Paper}
-            sx={{
-              bgcolor: 'background.paper',
-            }}
-          >
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>
-                    Developer
-                  </TableCell>
-
-                  <TableCell align="left">
-                    Changes
-                  </TableCell>
-
-                  <TableCell align="left">
-                    Avg patchsets
-                  </TableCell>
-
-                  <TableCell align="left">
-                    Failure rate
-                  </TableCell>
-
-                  <TableCell align="left">
-                    Lead time
-                  </TableCell>
-
-                  <TableCell align="left">
-                    Interactions
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-
-              <TableBody>
-                {developerRows.map((row) => (
-                  <TableRow
-                    key={row.username}
-                    hover
-                  >
-                    <TableCell>
-                      <Link
-                        component={RouterLink}
-                        to={
-                          isTeam
-                            ? `/gerrit/developers/${encodeURIComponent(
-                                row.username,
-                              )}`
-                            : `/gerrit/developers/${encodeURIComponent(
-                                row.username,
-                              )}?repo=${encodeURIComponent(
-                                name,
-                              )}`
-                        }
-                        underline="hover"
-                      >
-                        {row.username}
-                      </Link>
-                    </TableCell>
-
-                    <TableCell align="left">
-                      {row.changeCount}
-                    </TableCell>
-
-                    <TableCell align="left">
-                      {row.patchsets}
-                    </TableCell>
-
-                    <TableCell align="left">
-                      {row.failureRate}
-                    </TableCell>
-
-                    <TableCell align="left">
-                      {row.leadTime}
-                    </TableCell>
-
-                    <TableCell align="left">
-                      {row.interactions}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+          <MetricsTable
+            maxHeight={400}
+            columns={[
+              { key: 'username', label: 'Developer' },
+              { key: 'changeCount', label: 'Changes' },
+              { key: 'patchsetsRaw', label: 'Avg patchsets' },
+              { key: 'failureRateRaw', label: 'Failure rate' },
+              { key: 'leadTimeRaw', label: 'Lead time' },
+              { key: 'interactions', label: 'Interactions' },
+            ]}
+            rows={developerRows.map((row) => ({
+              username: (
+                <Link
+                  component={RouterLink}
+                  to={
+                    isTeam
+                      ? `/gerrit/developers/${encodeURIComponent(row.username)}`
+                      : `/gerrit/developers/${encodeURIComponent(row.username)}?repo=${encodeURIComponent(name)}`
+                  }
+                  underline="hover"
+                >
+                  {row.username}
+                </Link>
+              ),
+              changeCount: row.changeCount,
+              patchsetsRaw: row.patchsetsRaw,
+              failureRateRaw: row.failureRateRaw,
+              leadTimeRaw: row.leadTimeRaw,
+              interactions: row.interactions,
+            }))}
+          />
         </SectionCard>
 
         <ChartCard title="Changes by developer">
@@ -1054,61 +1116,20 @@ const ProjectDetailPage: React.FC = () => {
         {projectOverview.topCollaborators.length >
         0 ? (
           <SectionCard title="Reviewer/commenter relationships">
-            <TableContainer
-              component={Paper}
-              sx={{
-                bgcolor: 'background.paper',
-              }}
-            >
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>
-                      Person
-                    </TableCell>
-
-                    <TableCell align="left">
-                      Reviews
-                    </TableCell>
-
-                    <TableCell align="left">
-                      Comments
-                    </TableCell>
-
-                    <TableCell align="left">
-                      Total
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-
-                <TableBody>
-                  {projectOverview.topCollaborators.map(
-                    (item) => (
-                      <TableRow
-                        key={item.username}
-                        hover
-                      >
-                        <TableCell>
-                          {item.username}
-                        </TableCell>
-
-                        <TableCell align="left">
-                          {item.reviews}
-                        </TableCell>
-
-                        <TableCell align="left">
-                          {item.comments}
-                        </TableCell>
-
-                        <TableCell align="left">
-                          {item.total}
-                        </TableCell>
-                      </TableRow>
-                    ),
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
+            <MetricsTable
+              columns={[
+                { key: 'username', label: 'Person' },
+                { key: 'reviews', label: 'Reviews' },
+                { key: 'comments', label: 'Comments' },
+                { key: 'total', label: 'Total' },
+              ]}
+              rows={projectOverview.topCollaborators.map((item) => ({
+                username: item.username,
+                reviews: item.reviews,
+                comments: item.comments,
+                total: item.total,
+              }))}
+            />
           </SectionCard>
         ) : null}
 

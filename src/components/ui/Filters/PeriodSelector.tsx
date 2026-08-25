@@ -5,7 +5,7 @@ import {
 } from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { Period } from '@/types/periods';
-import DateRangePicker from './DateRangePicker';
+import CalendarRangePicker from './CalendarRangePicker';
 
 interface PeriodSelectorProps {
   periods: Period[];
@@ -18,13 +18,13 @@ const PeriodSelector: React.FC<PeriodSelectorProps> = ({
 }) => {
   const updatePeriod = (
     index: number,
-    field: keyof Period,
-    value: string,
+    start: string | null,
+    end: string | null,
   ) => {
     onChange(
       periods.map((period, currentIndex) =>
         currentIndex === index
-          ? { ...period, [field]: value || null }
+          ? { ...period, start, end }
           : period,
       ),
     );
@@ -50,15 +50,13 @@ const PeriodSelector: React.FC<PeriodSelectorProps> = ({
           spacing={1}
           alignItems="center"
         >
-          <DateRangePicker
+          <CalendarRangePicker
             startDate={period.start ?? ''}
             endDate={period.end ?? ''}
-            onStartDateChange={(value) =>
-              updatePeriod(index, 'start', value)
+            onChange={(start, end) =>
+              updatePeriod(index, start, end)
             }
-            onEndDateChange={(value) =>
-              updatePeriod(index, 'end', value)
-            }
+            otherRanges={periods.filter((_, i) => i !== index)}
           />
 
           <IconButton

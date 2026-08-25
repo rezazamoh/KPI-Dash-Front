@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 import {
   Paper,
   Table,
@@ -12,13 +12,14 @@ import {
 } from '@mui/material';
 
 interface MetricsTableProps {
-  rows: Array<Record<string, string | number | null>>;
+  rows: Array<Record<string, string | number | null | ReactNode>>;
   columns: Array<{ key: string; label: string }>;
+  maxHeight?: number;
 }
 
 type SortOrder = 'asc' | 'desc';
 
-const MetricsTable: React.FC<MetricsTableProps> = ({ rows, columns }) => {
+const MetricsTable: React.FC<MetricsTableProps> = ({ rows, columns, maxHeight }) => {
   const [order, setOrder] = useState<SortOrder>('asc');
   const [orderBy, setOrderBy] = useState<string | null>(null);
 
@@ -43,6 +44,9 @@ const MetricsTable: React.FC<MetricsTableProps> = ({ rows, columns }) => {
       if (aValue == null) return 1;
       if (bValue == null) return -1;
 
+      // Skip sorting for non-primitive values (e.g. ReactNode)
+      if (typeof aValue === 'object' || typeof bValue === 'object') return 0;
+
       let comparison = 0;
 
       if (typeof aValue === 'number' && typeof bValue === 'number') {
@@ -63,7 +67,7 @@ const MetricsTable: React.FC<MetricsTableProps> = ({ rows, columns }) => {
   }
 
   return (
-    <TableContainer component={Paper} sx={{ bgcolor: 'background.paper' }}>
+    <TableContainer component={Paper} sx={{ bgcolor: 'background.paper', maxHeight: maxHeight ?? 400 }}>
       <Table size="small">
         <TableHead>
           <TableRow>

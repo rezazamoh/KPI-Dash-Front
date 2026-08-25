@@ -1,5 +1,4 @@
 import { Button, FormControlLabel, Stack, Switch } from '@mui/material';
-import DateRangePicker from './DateRangePicker';
 import RepositorySelector from './RepositorySelector';
 import TopicSelector from './TopicSelector';
 import DeveloperSelector from './DeveloperSelector';
