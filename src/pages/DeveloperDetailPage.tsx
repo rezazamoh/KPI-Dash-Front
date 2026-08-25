@@ -895,177 +895,6 @@ const DeveloperDetailPage: React.FC = () => {
             setSelectedPeriodIndex(0);
           }}
         />
-
-        {periodResults.length > 1 && (
-          <SectionCard title="Period comparison">
-            <Stack spacing={2}>
-              <Stack
-                direction="row"
-                justifyContent="space-between"
-                alignItems="center"
-                flexWrap="wrap"
-                spacing={1}
-              >
-                <Typography
-                  color="text.secondary"
-                  variant="body2"
-                >
-                  Compare the selected periods or select a
-                  period to inspect its detailed metrics.
-                </Typography>
-
-                <ButtonGroup size="small" variant="outlined">
-                  <Button
-                    startIcon={<TableChartIcon />}
-                    color={comparisonView === 'table' ? 'primary' : 'inherit'}
-                    onClick={() => setComparisonView('table')}
-                  >
-                    Table
-                  </Button>
-                  <Button
-                    startIcon={<BarChartIcon />}
-                    color={comparisonView === 'chart' ? 'primary' : 'inherit'}
-                    onClick={() => setComparisonView('chart')}
-                  >
-                    Chart
-                  </Button>
-                </ButtonGroup>
-              </Stack>
-
-              <Stack
-                direction="row"
-                spacing={1}
-                flexWrap="wrap"
-              >
-                {comparisonRows.map((row) => (
-                  <Chip
-                    key={row.index}
-                    clickable
-                    color={
-                      selectedPeriodIndex === row.index
-                        ? 'primary'
-                        : 'default'
-                    }
-                    variant={
-                      selectedPeriodIndex === row.index
-                        ? 'filled'
-                        : 'outlined'
-                    }
-                    label={formatPeriodLabel(
-                      row.period,
-                      row.index,
-                    )}
-                    onClick={() =>
-                      setSelectedPeriodIndex(
-                        row.index,
-                      )
-                    }
-                  />
-                ))}
-              </Stack>
-
-              {comparisonView === 'table' ? (
-                <MetricsTable
-                  columns={[
-                    {
-                      key: 'period',
-                      label: 'Period',
-                    },
-                    {
-                      key: 'changes',
-                      label: 'Changes',
-                    },
-                    {
-                      key: 'repositories',
-                      label: 'Repositories',
-                    },
-                    {
-                      key: 'failureRate',
-                      label: 'Failure rate',
-                    },
-                    {
-                      key: 'leadTime',
-                      label: 'Lead time',
-                    },
-                  ]}
-                  rows={comparisonRows.map(
-                    (row) => ({
-                      period:
-                        formatPeriodLabel(
-                          row.period,
-                          row.index,
-                        ),
-                      changes:
-                        row.changes,
-                      repositories:
-                        row.repositories,
-                      failureRate:
-                        row.failureRate,
-                      leadTime:
-                        row.leadTime,
-                    }),
-                  )}
-                />
-              ) : (
-                <Stack spacing={3}>
-                  <Stack direction="row" justifyContent="flex-end">
-                    <ButtonGroup size="small" variant="outlined">
-                      <Button
-                        color={chartType === 'bar' ? 'primary' : 'inherit'}
-                        onClick={() => setChartType('bar')}
-                      >
-                        Bar
-                      </Button>
-                      <Button
-                        color={chartType === 'line' ? 'primary' : 'inherit'}
-                        onClick={() => setChartType('line')}
-                      >
-                        Line
-                      </Button>
-                    </ButtonGroup>
-                  </Stack>
-
-                  {([
-                    { key: 'changes', label: 'Changes', color: '#00bcd4' },
-                    { key: 'repositories', label: 'Repositories', color: '#9c27b0' },
-                    { key: 'failureRate', label: 'Failure rate (%)', color: '#f44336' },
-                    { key: 'leadTime', label: 'Lead time (h)', color: '#ff9800' },
-                  ] as const).map(({ key, label, color }) => (
-                    <Box key={key}>
-                      <Typography variant="subtitle2" gutterBottom>
-                        {label}
-                      </Typography>
-                      <Box sx={{ width: '100%', overflowX: 'auto' }}>
-                        <Box sx={{ minWidth: Math.max(300, chartData.length * 100) }}>
-                          <ResponsiveContainer width="100%" height={220}>
-                            {chartType === 'bar' ? (
-                              <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                                <XAxis dataKey="period" stroke="#cfd8fc" angle={-20} textAnchor="end" height={60} />
-                                <YAxis stroke="#cfd8fc" />
-                                <Tooltip />
-                                <Bar dataKey={key} fill={color} name={label} />
-                              </BarChart>
-                            ) : (
-                              <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                                <XAxis dataKey="period" stroke="#cfd8fc" angle={-20} textAnchor="end" height={60} />
-                                <YAxis stroke="#cfd8fc" />
-                                <Tooltip />
-                                <Line type="monotone" dataKey={key} stroke={color} name={label} strokeWidth={2} dot={{ r: 4 }} />
-                              </LineChart>
-                            )}
-                          </ResponsiveContainer>
-                        </Box>
-                      </Box>
-                    </Box>
-                  ))}
-                </Stack>
-              )}
-            </Stack>
-          </SectionCard>
-        )}
-
         {!hasAnyActivity && (
           <Alert severity="info">
             No activity found. {developerTitle} has no
@@ -1073,7 +902,37 @@ const DeveloperDetailPage: React.FC = () => {
             current filters.
           </Alert>
         )}
-
+          <Stack
+            direction="row"
+            spacing={1}
+            flexWrap="wrap"
+          >
+            {comparisonRows.map((row) => (
+              <Chip
+                key={row.index}
+                clickable
+                color={
+                  selectedPeriodIndex === row.index
+                    ? 'primary'
+                    : 'default'
+                }
+                variant={
+                  selectedPeriodIndex === row.index
+                    ? 'filled'
+                    : 'outlined'
+                }
+                label={formatPeriodLabel(
+                  row.period,
+                  row.index,
+                )}
+                onClick={() =>
+                  setSelectedPeriodIndex(
+                    row.index,
+                  )
+                }
+              />
+            ))}
+          </Stack>
         <Grid container spacing={3}>
           <Grid
             item
@@ -1645,12 +1504,150 @@ const DeveloperDetailPage: React.FC = () => {
             </SectionCard>
           </Grid>
         </Grid>
+        {periodResults.length > 1 && (
+          <SectionCard title="Period comparison">
+            <Stack spacing={2}>
+              <Stack
+                direction="row"
+                justifyContent="space-between"
+                alignItems="center"
+                flexWrap="wrap"
+                spacing={1}
+              >
+                <Typography
+                  color="text.secondary"
+                  variant="body2"
+                >
+                  Compare the selected periods or select a
+                  period to inspect its detailed metrics.
+                </Typography>
+
+                <ButtonGroup size="small" variant="outlined">
+                  <Button
+                    startIcon={<TableChartIcon />}
+                    color={comparisonView === 'table' ? 'primary' : 'inherit'}
+                    onClick={() => setComparisonView('table')}
+                  >
+                    Table
+                  </Button>
+                  <Button
+                    startIcon={<BarChartIcon />}
+                    color={comparisonView === 'chart' ? 'primary' : 'inherit'}
+                    onClick={() => setComparisonView('chart')}
+                  >
+                    Chart
+                  </Button>
+                </ButtonGroup>
+              </Stack>
+
+              {comparisonView === 'table' ? (
+                <MetricsTable
+                  columns={[
+                    {
+                      key: 'period',
+                      label: 'Period',
+                    },
+                    {
+                      key: 'changes',
+                      label: 'Changes',
+                    },
+                    {
+                      key: 'repositories',
+                      label: 'Repositories',
+                    },
+                    {
+                      key: 'failureRate',
+                      label: 'Failure rate',
+                    },
+                    {
+                      key: 'leadTime',
+                      label: 'Lead time',
+                    },
+                  ]}
+                  rows={comparisonRows.map(
+                    (row) => ({
+                      period:
+                        formatPeriodLabel(
+                          row.period,
+                          row.index,
+                        ),
+                      changes:
+                        row.changes,
+                      repositories:
+                        row.repositories,
+                      failureRate:
+                        row.failureRate,
+                      leadTime:
+                        row.leadTime,
+                    }),
+                  )}
+                />
+              ) : (
+                <Stack spacing={3}>
+                  <Stack direction="row" justifyContent="flex-end">
+                    <ButtonGroup size="small" variant="outlined">
+                      <Button
+                        color={chartType === 'bar' ? 'primary' : 'inherit'}
+                        onClick={() => setChartType('bar')}
+                      >
+                        Bar
+                      </Button>
+                      <Button
+                        color={chartType === 'line' ? 'primary' : 'inherit'}
+                        onClick={() => setChartType('line')}
+                      >
+                        Line
+                      </Button>
+                    </ButtonGroup>
+                  </Stack>
+
+                  {([
+                    { key: 'changes', label: 'Changes', color: '#00bcd4' },
+                    { key: 'repositories', label: 'Repositories', color: '#9c27b0' },
+                    { key: 'failureRate', label: 'Failure rate (%)', color: '#f44336' },
+                    { key: 'leadTime', label: 'Lead time (h)', color: '#ff9800' },
+                  ] as const).map(({ key, label, color }) => (
+                    <Box key={key}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        {label}
+                      </Typography>
+                      <Box sx={{ width: '100%', overflowX: 'auto' }}>
+                        <Box sx={{ minWidth: Math.max(300, chartData.length * 100) }}>
+                          <ResponsiveContainer width="100%" height={220}>
+                            {chartType === 'bar' ? (
+                              <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                                <XAxis dataKey="period" stroke="#cfd8fc" angle={-20} textAnchor="end" height={60} />
+                                <YAxis stroke="#cfd8fc" />
+                                <Tooltip />
+                                <Bar dataKey={key} fill={color} name={label} />
+                              </BarChart>
+                            ) : (
+                              <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                                <XAxis dataKey="period" stroke="#cfd8fc" angle={-20} textAnchor="end" height={60} />
+                                <YAxis stroke="#cfd8fc" />
+                                <Tooltip />
+                                <Line type="monotone" dataKey={key} stroke={color} name={label} strokeWidth={2} dot={{ r: 4 }} />
+                              </LineChart>
+                            )}
+                          </ResponsiveContainer>
+                        </Box>
+                      </Box>
+                    </Box>
+                  ))}
+                </Stack>
+              )}
+            </Stack>
+          </SectionCard>
+        )}
 
         <Grid
           container
           spacing={3}
           sx={{ mt: 2 }}
         >
+          
           <Grid item xs={12}>
             <Button
               size="small"

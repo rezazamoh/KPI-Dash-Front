@@ -95,7 +95,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
           onChange={onPeriodsChange}
         />
 
-        <FormControlLabel
+        {/*<FormControlLabel
           control={
             <Switch
               checked={draftLive}
@@ -103,8 +103,9 @@ const FilterBar: React.FC<FilterBarProps> = ({
             />
           }
           label="Live only"
-        />
+        />*/}
 
+      </Stack>
         <Button
           variant="outlined"
           size="small"
@@ -120,7 +121,6 @@ const FilterBar: React.FC<FilterBarProps> = ({
         >
           Apply
         </Button>
-      </Stack>
     </Stack>
   </Stack>
 );
