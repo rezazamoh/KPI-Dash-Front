@@ -126,8 +126,8 @@ const ProjectDetailPage: React.FC = () => {
   const [draftLive, setDraftLive] = useState(getDefaultLiveValue);
   const [topicMenuOpen, setTopicMenuOpen] = useState(false);
   const [showRawJson, setShowRawJson] = useState(false);
-  const [comparisonView, setComparisonView] = useState<'table' | 'chart'>('table');
-  const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
+  const [comparisonView, setComparisonView] = useState<'table' | 'chart'>('chart');
+  const [chartType, setChartType] = useState<'bar' | 'line'>('line');
 
   useEffect(() => {
     setDraftDevelopers(selectedDevelopers);
@@ -599,14 +599,27 @@ const ProjectDetailPage: React.FC = () => {
 
   const chartData = useMemo(
     () =>
-      comparisonRows.map((row) => ({
-        period: formatPeriodLabel(row.period, row.index),
-        changes: row.changes,
-        developers: row.developers,
-        avgPatchsets: row.avgPatchsets,
-        failureRate: row.failureRate,
-        leadTime: row.leadTime,
-      })),
+      comparisonRows.map((row) => {
+        const period = row.period as any;
+        const start = period?.start ?? period?.start_date ?? period?.from ?? null;
+        const end = period?.end ?? period?.end_date ?? period?.to ?? null;
+
+        const fmtShort = (v: string | null) => {
+          if (!v) return '';
+          const d = new Date(v);
+          if (Number.isNaN(d.getTime())) return v;
+          return `${d.getMonth() + 1}/${d.getDate()}`;
+        };
+
+        return {
+          period: start || end ? `${fmtShort(start)} – ${fmtShort(end)}` : `P${row.index + 1}`,
+          changes: row.changes,
+          developers: row.developers,
+          avgPatchsets: row.avgPatchsets,
+          failureRate: row.failureRate,
+          leadTime: row.leadTime,
+        };
+      }),
     [comparisonRows],
   );
 
@@ -1070,7 +1083,7 @@ const ProjectDetailPage: React.FC = () => {
                   }))}
                 />
               ) : (
-                <Stack spacing={3}>
+                <Stack spacing={2}>
                   <Stack direction="row" justifyContent="flex-end">
                     <ButtonGroup size="small" variant="outlined">
                       <Button
@@ -1088,42 +1101,42 @@ const ProjectDetailPage: React.FC = () => {
                     </ButtonGroup>
                   </Stack>
 
-                  {([
-                    { key: 'changes', label: 'Changes', color: '#00bcd4' },
-                    { key: 'developers', label: 'Developers', color: '#9c27b0' },
-                    { key: 'avgPatchsets', label: 'Avg patchsets per change', color: '#4caf50' },
-                    { key: 'failureRate', label: 'Failure rate (%)', color: '#f44336' },
-                    { key: 'leadTime', label: 'Lead time (h)', color: '#ff9800' },
-                  ] as const).map(({ key, label, color }) => (
-                    <Box key={key}>
-                      <Typography variant="subtitle2" gutterBottom>
-                        {label}
-                      </Typography>
-                      <Box sx={{ width: '100%', overflowX: 'auto' }}>
-                        <Box sx={{ minWidth: Math.max(300, chartData.length * 100) }}>
-                          <ResponsiveContainer width="100%" height={220}>
+                  <Grid container spacing={2}>
+                    {([
+                      { key: 'changes', label: 'Changes', color: '#00bcd4' },
+                      { key: 'developers', label: 'Developers', color: '#9c27b0' },
+                      { key: 'avgPatchsets', label: 'Avg patchsets per change', color: '#4caf50' },
+                      { key: 'failureRate', label: 'Failure rate (%)', color: '#f44336' },
+                      { key: 'leadTime', label: 'Lead time (h)', color: '#ff9800' },
+                    ] as const).map(({ key, label, color }) => (
+                      <Grid item xs={12} md={6} key={key}>
+                        <Box>
+                          <Typography variant="subtitle2" gutterBottom>
+                            {label}
+                          </Typography>
+                          <ResponsiveContainer width="100%" height={200}>
                             {chartType === 'bar' ? (
-                              <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
+                              <BarChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                                <XAxis dataKey="period" stroke="#cfd8fc" angle={-20} textAnchor="end" height={60} />
-                                <YAxis stroke="#cfd8fc" />
+                                <XAxis dataKey="period" stroke="#cfd8fc" tick={{ fontSize: 11 }} interval={0} angle={-30} textAnchor="end" height={50} />
+                                <YAxis stroke="#cfd8fc" tick={{ fontSize: 11 }} />
                                 <Tooltip />
                                 <Bar dataKey={key} fill={color} name={label} />
                               </BarChart>
                             ) : (
-                              <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
+                              <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                                <XAxis dataKey="period" stroke="#cfd8fc" angle={-20} textAnchor="end" height={60} />
-                                <YAxis stroke="#cfd8fc" />
+                                <XAxis dataKey="period" stroke="#cfd8fc" tick={{ fontSize: 11 }} interval={0} angle={-30} textAnchor="end" height={50} />
+                                <YAxis stroke="#cfd8fc" tick={{ fontSize: 11 }} />
                                 <Tooltip />
-                                <Line type="monotone" dataKey={key} stroke={color} name={label} strokeWidth={2} dot={{ r: 4 }} />
+                                <Line type="monotone" dataKey={key} stroke={color} name={label} strokeWidth={2} dot={{ r: 3 }} />
                               </LineChart>
                             )}
                           </ResponsiveContainer>
                         </Box>
-                      </Box>
-                    </Box>
-                  ))}
+                      </Grid>
+                    ))}
+                  </Grid>
                 </Stack>
               )}
             </Stack>
