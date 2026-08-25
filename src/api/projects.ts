@@ -1,43 +1,33 @@
 import { ProjectListResponse, ProjectDetailResponse } from '@/types/projects';
 import { apiClient } from './client';
+import {
+  buildQueryString,
+  Period,
+} from './queryParams';
 
-const buildQueryString = (params: Record<string, unknown>) => {
-  const searchParams = new URLSearchParams();
-
-  Object.entries(params).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === '') {
-      return;
-    }
-
-    if (Array.isArray(value)) {
-      value.forEach((item) => {
-        if (item !== undefined && item !== null && item !== '') {
-          searchParams.append(key, String(item));
-        }
-      });
-      return;
-    }
-
-    searchParams.set(key, String(value));
+export const fetchProjects = async (
+  live = false,
+): Promise<ProjectListResponse> => {
+  const response = await apiClient.get('gerrit/projects', {
+    params: { live },
   });
 
-  const queryString = searchParams.toString();
-  return queryString ? `?${queryString}` : '';
-};
-
-export const fetchProjects = async (live = false): Promise<ProjectListResponse> => {
-  const response = await apiClient.get('gerrit/projects', { params: { live } });
   return response.data;
 };
 
 export const fetchProject = async (
   project: string,
-  params: Record<string, any>
+  params: Record<string, unknown>,
 ): Promise<ProjectDetailResponse> => {
-  const queryString = buildQueryString(params);
+  const queryString = buildQueryString({
+    username: params.username,
+    topic: params.topic,
+    periods: params.periods,
+    live: params.live,
+  });
 
   const response = await apiClient.get(
-    `gerrit/projects/${encodeURIComponent(project)}${queryString}`
+    `/gerrit/projects/${encodeURIComponent(project)}${queryString}`,
   );
 
   return response.data;

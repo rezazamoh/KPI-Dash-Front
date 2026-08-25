@@ -3,6 +3,8 @@ import DateRangePicker from './DateRangePicker';
 import RepositorySelector from './RepositorySelector';
 import TopicSelector from './TopicSelector';
 import DeveloperSelector from './DeveloperSelector';
+import { Period } from '@/api/queryParams';
+import PeriodSelector from '@/components/ui/Filters/PeriodSelector';
 
 interface FilterBarProps {
   developerOptions: string[];
@@ -11,8 +13,7 @@ interface FilterBarProps {
   selectedDeveloper: string | string[] | null;
   selectedRepositories: string[];
   selectedTopics: string[];
-  startDate: string;
-  endDate: string;
+  periods: Period[];
   live: boolean;
   topicDisabled?: boolean;
   showRepositorySelector?: boolean;
@@ -22,14 +23,12 @@ interface FilterBarProps {
   draftDeveloper: string | string[] | null;
   draftRepositories: string[];
   draftTopics: string[];
-  draftStartDate: string;
-  draftEndDate: string;
+  draftPeriods: Period[];
   draftLive: boolean;
   onDeveloperChange: (value: string | string[] | null) => void;
   onRepositoryChange: (value: string[]) => void;
   onTopicChange: (value: string[]) => void;
-  onStartDateChange: (value: string) => void;
-  onEndDateChange: (value: string) => void;
+  onPeriodsChange: (periods: Period[]) => void;
   onLiveChange: (value: boolean) => void;
   onApplyFilters: () => void;
   onResetFilters: () => void;
@@ -43,8 +42,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
   selectedDeveloper,
   selectedRepositories,
   selectedTopics,
-  startDate,
-  endDate,
+  periods,
   live,
   topicDisabled = false,
   showRepositorySelector = true,
@@ -54,14 +52,12 @@ const FilterBar: React.FC<FilterBarProps> = ({
   draftDeveloper,
   draftRepositories,
   draftTopics,
-  draftStartDate,
-  draftEndDate,
+  draftPeriods,
   draftLive,
   onDeveloperChange,
   onRepositoryChange,
   onTopicChange,
-  onStartDateChange,
-  onEndDateChange,
+  onPeriodsChange,
   onLiveChange,
   onApplyFilters,
   onResetFilters,
@@ -95,20 +91,34 @@ const FilterBar: React.FC<FilterBarProps> = ({
         />
       ) : null}
       <Stack direction="row" spacing={1}>
-    <DateRangePicker
-      startDate={draftStartDate}
-      endDate={draftEndDate}
-      onStartDateChange={onStartDateChange}
-      onEndDateChange={onEndDateChange}
-    />
-      <FormControlLabel
-        control={<Switch checked={draftLive} onChange={(event) => onLiveChange(event.target.checked)} />}
-        label="Live only"
-      />
-        <Button variant="outlined" size="small" onClick={onResetFilters}>
+        <PeriodSelector
+          periods={draftPeriods}
+          onChange={onPeriodsChange}
+        />
+
+        <FormControlLabel
+          control={
+            <Switch
+              checked={draftLive}
+              onChange={(event) => onLiveChange(event.target.checked)}
+            />
+          }
+          label="Live only"
+        />
+
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={onResetFilters}
+        >
           Reset
         </Button>
-        <Button variant="contained" size="small" onClick={onApplyFilters}>
+
+        <Button
+          variant="contained"
+          size="small"
+          onClick={onApplyFilters}
+        >
           Apply
         </Button>
       </Stack>

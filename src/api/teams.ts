@@ -1,3 +1,4 @@
+import { buildQueryString, Period } from './queryParams';
 import { apiClient } from './client';
 
 export interface Team {
@@ -47,13 +48,25 @@ export const deleteTeam = async (teamId: number): Promise<void> => {
   await apiClient.delete(`/gerrit/teams/${teamId}`);
 };
 
+
 export const fetchTeamPerformance = async (
   teamId: number,
-  params?: Record<string, unknown>,
+  params: {
+    project?: string[];
+    topic?: string[];
+    periods?: Period[];
+    live?: boolean;
+  } = {},
 ) => {
+  const queryString = buildQueryString({
+    project: params.project,
+    topic: params.topic,
+    periods: params.periods,
+    live: params.live,
+  });
+
   const response = await apiClient.get(
-    `/gerrit/teams/${teamId}/performance`,
-    { params },
+    `/gerrit/teams/${teamId}/performance${queryString}`,
   );
 
   return response.data;

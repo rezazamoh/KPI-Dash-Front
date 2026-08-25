@@ -1,3 +1,5 @@
+import { PeriodResponse } from './periods';
+
 export interface ProjectListResponse {
   filters: {
     start_date: string | null;
@@ -66,7 +68,7 @@ export interface ProjectDeveloperMetrics {
   };
 }
 
-export interface ProjectDetailResponse {
+export interface ProjectPerformanceMetrics {
   filters: {
     project: string;
     developers: string[] | null;
@@ -79,3 +81,6 @@ export interface ProjectDetailResponse {
   topics: string[];
   developer_metrics: ProjectDeveloperMetrics;
 }
+
+export type ProjectDetailResponse =
+  PeriodResponse<ProjectPerformanceMetrics>[];

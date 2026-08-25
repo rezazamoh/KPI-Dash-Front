@@ -1,3 +1,4 @@
+import { PeriodResponse } from './periods';
 export interface DeveloperListResponse {
   filters: {
     start_date: string | null;
@@ -57,7 +58,7 @@ export interface DeveloperSnapshotMetrics {
   build_failure_rate: FailureRateDetail | null;
 }
 
-export interface DeveloperDetailResponse {
+export interface DeveloperPerformanceMetrics  {
   username: string;
   snapshot_time: string;
   live: boolean;
@@ -71,3 +72,6 @@ export interface DeveloperDetailResponse {
   grouped_by_repo?: Record<string, DeveloperSnapshotMetrics>;
   grouped_by_topic?: Record<string, DeveloperSnapshotMetrics>;
 }
+
+export type DeveloperDetailResponse =
+  PeriodResponse<DeveloperPerformanceMetrics>[];

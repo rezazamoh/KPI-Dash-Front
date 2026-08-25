@@ -1,10 +1,12 @@
+import { PeriodResponse } from './periods';
+
 export interface Team {
   id: number;
   name: string;
   members: string[];
 }
 
-export interface TeamPerformanceResponse {
+export interface TeamPerformanceMetrics {
   filters: {
     team: string;
     developers: string[] | null;
@@ -20,3 +22,6 @@ export interface TeamPerformanceResponse {
 
   developer_metrics: Record<string, any>;
 }
+
+export type TeamPerformanceResponse =
+  PeriodResponse<TeamPerformanceMetrics>[];
