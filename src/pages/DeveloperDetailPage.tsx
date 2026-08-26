@@ -1180,33 +1180,52 @@ const DeveloperDetailPage: React.FC = () => {
             <SectionCard title="Review & delivery metrics">
               <Stack spacing={3}>
                 <Box>
-                  <Typography
-                    variant="subtitle1"
-                    gutterBottom
-                  >
-                    Reviewer response time
-                  </Typography>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between">
+                    <Typography variant="subtitle1" gutterBottom>
+                      Reviewer response time
+                    </Typography>
+                    {metrics.reviewer_response_time && (
+                      <Typography variant="caption" color="text.secondary">
+                        {metrics.changes_reviewed} changes reviewed
+                      </Typography>
+                    )}
+                  </Stack>
 
                   {metrics.reviewer_response_time ? (
                     <Stack spacing={2}>
                       <Typography
                         variant="h4"
-                        sx={{
-                          color: 'success.main',
-                        }}
+                        sx={{ color: 'success.main' }}
                       >
                         {formatDuration(metrics.reviewer_response_time.mean)}
                       </Typography>
 
+                      <Stack direction="row" spacing={3}>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">
+                            Min
+                          </Typography>
+                          <Typography variant="body2">
+                            {formatDuration(metrics.reviewer_response_time.min)}
+                          </Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">
+                            Max
+                          </Typography>
+                          <Typography variant="body2">
+                            {formatDuration(metrics.reviewer_response_time.max)}
+                          </Typography>
+                        </Box>
+                      </Stack>
+
                       <Typography color="text.secondary">
-                        Average response time across the
-                        current selection.
+                        Average response time across the current selection.
                       </Typography>
                     </Stack>
                   ) : (
                     <Typography color="text.secondary">
-                      No reviewer response time data
-                      available for this scope.
+                      No reviewer response time data available for this scope.
                     </Typography>
                   )}
                 </Box>
