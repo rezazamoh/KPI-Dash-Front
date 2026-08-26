@@ -43,14 +43,14 @@ export interface ProjectDeveloperMetrics {
       } | null;
     };
     lead_time: {
-      min: { hours: number; url?: string; change_number?: number };
+      min: { duration: number; url?: string; change_number?: number };
       mean: number;
-      max: { hours: number; url?: string; change_number?: number };
+      max: { duration: number; url?: string; change_number?: number };
     } | null;
     reviewer_response_time: {
-      min_hours: number;
-      mean_hours: number;
-      max_hours: number;
+      min: number;
+      mean: number;
+      max: number;
     } | null;
     build_failure_rate: {
       total_changes_with_builds: number;

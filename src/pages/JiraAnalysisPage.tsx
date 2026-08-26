@@ -27,6 +27,7 @@ import {
   JiraPerformanceResponse,
   JiraProject,
 } from '@/types/jira';
+import { formatDuration } from '@/utils/formatDuration';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 const formatPercent = (value: number | null | undefined) => {
@@ -35,14 +36,6 @@ const formatPercent = (value: number | null | undefined) => {
   }
 
   return `${value.toFixed(1)}%`;
-};
-
-const formatDays = (value: number | null | undefined) => {
-  if (typeof value !== 'number' || Number.isNaN(value)) {
-    return '—';
-  }
-
-  return `${value.toFixed(1)} days`;
 };
 
 const toChartData = (record: Record<string, number>) =>
@@ -121,16 +114,16 @@ const PerformanceDashboard: React.FC<{ metrics: JiraPerformanceMetrics }> = ({ m
         <Grid item xs={12} sm={6} md={3}>
           <MetricCard
             title="Avg. issue age"
-            value={formatDays(metrics.average_issue_age_days)}
-            subtitle="Days since created"
+            value={formatDuration(metrics.average_issue_age)}
+            subtitle="Since created"
             accent="secondary.main"
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <MetricCard
             title="Avg. resolution time"
-            value={formatDays(metrics.average_resolution_time_days)}
-            subtitle="Days from created to resolved"
+            value={formatDuration(metrics.average_resolution_time)}
+            subtitle="Created to resolved"
             accent="secondary.main"
           />
         </Grid>

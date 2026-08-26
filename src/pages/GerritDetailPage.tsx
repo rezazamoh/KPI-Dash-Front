@@ -28,6 +28,7 @@ import MetricsTable from '@/components/ui/MetricsTable';
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { buildProjectRelationshipGraph } from '@/utils/relationshipGraph';
 import { getDefaultLiveValue } from '@/utils/livePreference';
+import { formatDuration } from '@/utils/formatDuration';
 import { Period } from '@/types/periods';
 
 const formatPercent = (value: number | null | undefined) => {
@@ -519,12 +520,31 @@ const ProjectDetailPage: React.FC = () => {
             ),
             failureRateRaw:
               metrics.build_failure_rate?.overall_failure_rate ?? null,
+            changesFailureRate: formatPercent(
+              metrics.build_failure_rate?.changes_failure_rate,
+            ),
+            changesWithFailures:
+              metrics.build_failure_rate?.changes_with_failures ?? 0,
+            totalOutcomes:
+              metrics.build_failure_rate?.total_outcomes ?? 0,
+            failedOutcomes:
+              metrics.build_failure_rate?.failed_outcomes ?? 0,
+            byLabel:
+              metrics.build_failure_rate?.by_label ?? {},
             leadTime:
               metrics.lead_time?.mean != null
-                ? `${metrics.lead_time.mean.toFixed(1)}h`
+                ? formatDuration(metrics.lead_time.mean)
                 : '—',
             leadTimeRaw:
               metrics.lead_time?.mean ?? null,
+            leadTimeMin:
+              metrics.lead_time?.min?.duration ?? null,
+            leadTimeMinUrl:
+              metrics.lead_time?.min?.url ?? null,
+            leadTimeMax:
+              metrics.lead_time?.max?.duration ?? null,
+            leadTimeMaxUrl:
+              metrics.lead_time?.max?.url ?? null,
             interactions: interactionCount,
           };
         })
@@ -919,7 +939,7 @@ const ProjectDetailPage: React.FC = () => {
               { key: 'changeCount', label: 'Changes' },
               { key: 'patchsetsRaw', label: 'Avg patchsets' },
               { key: 'failureRateRaw', label: 'Failure rate' },
-              { key: 'leadTimeRaw', label: 'Lead time' },
+              { key: 'leadTime', label: 'Lead time' },
               { key: 'interactions', label: 'Interactions' },
             ]}
             rows={developerRows.map((row) => ({
@@ -939,11 +959,59 @@ const ProjectDetailPage: React.FC = () => {
               changeCount: row.changeCount,
               patchsetsRaw: row.patchsetsRaw,
               failureRateRaw: row.failureRateRaw,
-              leadTimeRaw: row.leadTimeRaw,
+              leadTime: row.leadTime,
               interactions: row.interactions,
             }))}
           />
         </SectionCard>
+
+        {developerRows.length > 0 && (
+          <SectionCard title="Detailed developer metrics">
+            <MetricsTable
+              maxHeight={400}
+              columns={[
+                { key: 'username', label: 'Developer' },
+                { key: 'changesFailureRate', label: 'Changes failure rate' },
+                { key: 'changesWithFailures', label: 'Changes w/ failures' },
+                { key: 'failedOutcomes', label: 'Failed outcomes' },
+                { key: 'totalOutcomes', label: 'Total outcomes' },
+                { key: 'leadTimeMin', label: 'Lead time (fastest)' },
+                { key: 'leadTimeMax', label: 'Lead time (slowest)' },
+              ]}
+              rows={developerRows.map((row) => ({
+                username: row.username,
+                changesFailureRate: row.changesFailureRate,
+                changesWithFailures: row.changesWithFailures,
+                failedOutcomes: row.failedOutcomes,
+                totalOutcomes: row.totalOutcomes,
+                leadTimeMin: row.leadTimeMinUrl ? (
+                  <Link
+                    href={row.leadTimeMinUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    underline="hover"
+                  >
+                    {formatDuration(row.leadTimeMin)}
+                  </Link>
+                ) : (
+                  formatDuration(row.leadTimeMin)
+                ),
+                leadTimeMax: row.leadTimeMaxUrl ? (
+                  <Link
+                    href={row.leadTimeMaxUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    underline="hover"
+                  >
+                    {formatDuration(row.leadTimeMax)}
+                  </Link>
+                ) : (
+                  formatDuration(row.leadTimeMax)
+                ),
+              }))}
+            />
+          </SectionCard>
+        )}
 
         <ChartCard title="Changes by developer">
           <ResponsiveContainer
@@ -1079,7 +1147,7 @@ const ProjectDetailPage: React.FC = () => {
                     developers: row.developers,
                     avgPatchsets: row.avgPatchsets.toFixed(2),
                     failureRate: `${row.failureRate.toFixed(1)}%`,
-                    leadTime: row.leadTime > 0 ? `${row.leadTime.toFixed(2)} h` : '—',
+                    leadTime: row.leadTime > 0 ? row.leadTime : '—',
                   }))}
                 />
               ) : (
@@ -1107,7 +1175,7 @@ const ProjectDetailPage: React.FC = () => {
                       { key: 'developers', label: 'Developers', color: '#9c27b0' },
                       { key: 'avgPatchsets', label: 'Avg patchsets per change', color: '#4caf50' },
                       { key: 'failureRate', label: 'Failure rate (%)', color: '#f44336' },
-                      { key: 'leadTime', label: 'Lead time (h)', color: '#ff9800' },
+                      { key: 'leadTime', label: 'Lead time', color: '#ff9800' },
                     ] as const).map(({ key, label, color }) => (
                       <Grid item xs={12} md={6} key={key}>
                         <Box>

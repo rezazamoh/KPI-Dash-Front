@@ -9,7 +9,7 @@ export interface DeveloperListResponse {
 }
 
 export interface LeadTimeValue {
-  hours: number;
+  duration: number;
   url?: string;
   change_number?: number;
 }
@@ -51,9 +51,9 @@ export interface DeveloperSnapshotMetrics {
     max: LeadTimeValue;
   } | null;
   reviewer_response_time: {
-    min_hours: number;
-    mean_hours: number;
-    max_hours: number;
+    min: number;
+    mean: number;
+    max: number;
   } | null;
   build_failure_rate: FailureRateDetail | null;
 }

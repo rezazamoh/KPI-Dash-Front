@@ -26,8 +26,8 @@ export interface JiraPerformanceMetrics {
   completion_rate: number;
   bugs: number;
   bug_rate: number;
-  average_issue_age_days: number | null;
-  average_resolution_time_days: number | null;
+  average_issue_age: number | null;
+  average_resolution_time: number | null;
   by_status: Record<string, number>;
   by_issue_type: Record<string, number>;
   by_priority: Record<string, number>;

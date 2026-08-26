@@ -40,6 +40,7 @@ import {
   PeopleStats,
 } from '@/types/developers';
 import { getDefaultLiveValue } from '@/utils/livePreference';
+import { formatDuration } from '@/utils/formatDuration';
 import { Period } from '@/types/periods';
 import {
   Bar,
@@ -465,7 +466,7 @@ const DeveloperDetailPage: React.FC = () => {
 
           leadTime:
             leadTimeRaw != null
-              ? `${leadTimeRaw.toFixed(2)} h`
+              ? formatDuration(leadTimeRaw)
               : '—',
 
           leadTimeRaw,
@@ -992,9 +993,7 @@ const DeveloperDetailPage: React.FC = () => {
               title="Review response"
               value={
                 metrics.reviewer_response_time
-                  ? `${metrics.reviewer_response_time.mean_hours.toFixed(
-                      2,
-                    )} h`
+                  ? formatDuration(metrics.reviewer_response_time.mean)
                   : '—'
               }
               subtitle={
@@ -1013,13 +1012,7 @@ const DeveloperDetailPage: React.FC = () => {
           >
             <MetricCard
               title="Lead time"
-              value={
-                metrics.lead_time?.mean != null
-                  ? `${metrics.lead_time.mean.toFixed(
-                      2,
-                    )} h`
-                  : '—'
-              }
+              value={formatDuration(metrics.lead_time?.mean)}
               subtitle={
                 metrics.lead_time
                   ? 'Mean lead time'
@@ -1202,10 +1195,7 @@ const DeveloperDetailPage: React.FC = () => {
                           color: 'success.main',
                         }}
                       >
-                        {metrics.reviewer_response_time.mean_hours.toFixed(
-                          2,
-                        )}{' '}
-                        h
+                        {formatDuration(metrics.reviewer_response_time.mean)}
                       </Typography>
 
                       <Typography color="text.secondary">
@@ -1243,12 +1233,43 @@ const DeveloperDetailPage: React.FC = () => {
                         variant="h5"
                         sx={{ mt: 1 }}
                       >
-                        {metrics.lead_time?.mean != null
-                          ? `${metrics.lead_time.mean.toFixed(
-                              2,
-                            )} h`
-                          : '—'}
+                        {formatDuration(metrics.lead_time?.mean)}
                       </Typography>
+
+                      {metrics.lead_time && (
+                        <Stack spacing={0.5} sx={{ mt: 1 }}>
+                          <Typography variant="body2" color="text.secondary">
+                            Fastest:{' '}
+                            {metrics.lead_time.min.url ? (
+                              <Link
+                                href={metrics.lead_time.min.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                underline="hover"
+                              >
+                                {formatDuration(metrics.lead_time.min.duration)}
+                              </Link>
+                            ) : (
+                              formatDuration(metrics.lead_time.min.duration)
+                            )}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Slowest:{' '}
+                            {metrics.lead_time.max.url ? (
+                              <Link
+                                href={metrics.lead_time.max.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                underline="hover"
+                              >
+                                {formatDuration(metrics.lead_time.max.duration)}
+                              </Link>
+                            ) : (
+                              formatDuration(metrics.lead_time.max.duration)
+                            )}
+                          </Typography>
+                        </Stack>
+                      )}
                     </Box>
                   </Grid>
 
@@ -1317,21 +1338,39 @@ const DeveloperDetailPage: React.FC = () => {
                           >
                             <Typography variant="body2">
                               Total changes with builds:{' '}
-                              {
-                                metrics
-                                  .build_failure_rate
-                                  .total_changes_with_builds
-                              }
+                              {metrics.build_failure_rate.total_changes_with_builds}
                             </Typography>
-
+                            <Typography variant="body2">
+                              Total outcomes:{' '}
+                              {metrics.build_failure_rate.total_outcomes}
+                            </Typography>
                             <Typography variant="body2">
                               Failed outcomes:{' '}
-                              {
-                                metrics
-                                  .build_failure_rate
-                                  .failed_outcomes
-                              }
+                              {metrics.build_failure_rate.failed_outcomes}
                             </Typography>
+                            <Typography variant="body2">
+                              Changes with failures:{' '}
+                              {metrics.build_failure_rate.changes_with_failures}
+                            </Typography>
+                            <Typography variant="body2">
+                              Changes failure rate:{' '}
+                              {formatPercent(metrics.build_failure_rate.changes_failure_rate)}
+                            </Typography>
+
+                            {Object.keys(metrics.build_failure_rate.by_label).length > 0 && (
+                              <Box sx={{ mt: 1.5 }}>
+                                <Typography variant="body2" fontWeight={600} gutterBottom>
+                                  By label:
+                                </Typography>
+                                {Object.entries(metrics.build_failure_rate.by_label).map(
+                                  ([label, detail]) => (
+                                    <Typography key={label} variant="body2" color="text.secondary">
+                                      {label}: {detail.failed}/{detail.total} ({formatPercent(detail.failure_rate)})
+                                    </Typography>
+                                  ),
+                                )}
+                              </Box>
+                            )}
                           </Box>
                         ) : null}
                       </Collapse>
@@ -1619,7 +1658,7 @@ const DeveloperDetailPage: React.FC = () => {
                       { key: 'changes', label: 'Changes', color: '#00bcd4' },
                       { key: 'repositories', label: 'Repositories', color: '#9c27b0' },
                       { key: 'failureRate', label: 'Failure rate (%)', color: '#f44336' },
-                      { key: 'leadTime', label: 'Lead time (h)', color: '#ff9800' },
+                      { key: 'leadTime', label: 'Lead time', color: '#ff9800' },
                     ] as const).map(({ key, label, color }) => (
                       <Grid item xs={12} md={6} key={key}>
                         <Box>
