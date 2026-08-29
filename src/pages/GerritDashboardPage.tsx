@@ -18,6 +18,8 @@ import {
   Tabs,
   TextField,
   Typography,
+  Autocomplete,
+  Chip,
 } from '@mui/material';
 
 import { useMemo, useState } from 'react';
@@ -450,7 +452,7 @@ const GerritDashboardPage: React.FC = () => {
                     setTeamSearch(event.target.value)
                   }
                 />
-
+                {/*
                 <FormControl
                   size="small"
                   sx={{ minWidth: 240 }}
@@ -480,6 +482,7 @@ const GerritDashboardPage: React.FC = () => {
                     ))}
                   </Select>
                 </FormControl>
+                */}
 
                 <Button
                   variant="contained"
@@ -603,34 +606,31 @@ const GerritDashboardPage: React.FC = () => {
               }
             />
 
-            <FormControl fullWidth>
-              <InputLabel>Members</InputLabel>
-
-              <Select
-                multiple
-                value={teamMembers}
+          <Autocomplete
+            multiple
+            fullWidth
+            options={developers}
+            value={teamMembers}
+            onChange={(event, newValue) => setTeamMembers(newValue)}
+            filterSelectedOptions
+            renderTags={(value, getTagProps) =>
+              value.map((developer, index) => (
+                <Chip
+                  label={developer}
+                  size="small"
+                  {...getTagProps({ index })}
+                  key={developer}
+                />
+              ))
+            }
+            renderInput={(params) => (
+              <TextField
+                {...params}
                 label="Members"
-                onChange={(event) =>
-                  setTeamMembers(
-                    typeof event.target.value === 'string'
-                      ? event.target.value.split(',')
-                      : event.target.value,
-                  )
-                }
-                renderValue={(selected) =>
-                  selected.join(', ')
-                }
-              >
-                {developers.map((developer) => (
-                  <MenuItem
-                    key={developer}
-                    value={developer}
-                  >
-                    {developer}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+                placeholder={teamMembers.length ? '' : 'Search developers...'}
+              />
+            )}
+          />
           </Stack>
         </DialogContent>
 
