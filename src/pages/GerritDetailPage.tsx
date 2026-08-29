@@ -36,6 +36,14 @@ import {
 import { projectMetricDefs, projectMetricDetailDefs } from '@/metrics/projectMetrics';
 import { Period } from '@/types/periods';
 
+const statusPalette: Record<string, string> = {
+  MERGED: 'success.main',
+  ABANDONED: 'error.main',
+  OPEN: 'warning.main',
+  DRAFT: 'info.main',
+  NEEDS_REVIEW: 'secondary.main',
+};
+
 const ProjectDetailPage: React.FC = () => {
   const { project, team } = useParams<{
     project?: string;
@@ -49,12 +57,19 @@ const ProjectDetailPage: React.FC = () => {
     return params.getAll('username');
   }, [location.search]);
 
+  const reposFromQuery = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.getAll('repo');
+  }, [location.search]);
+
   const isTeam = Boolean(team);
   const name = team ?? project ?? '';
-  const projectName = project ?? '';
 
   const [selectedDevelopers, setSelectedDevelopers] =
     useState<string[]>(developersFromQuery);
+
+  const [selectedRepositories, setSelectedRepositories] =
+    useState<string[]>(reposFromQuery);
 
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [periods, setPeriods] = useState<Period[]>([]);
@@ -65,6 +80,9 @@ const ProjectDetailPage: React.FC = () => {
   const [draftDevelopers, setDraftDevelopers] =
     useState<string[]>(developersFromQuery);
 
+  const [draftRepositories, setDraftRepositories] =
+    useState<string[]>(reposFromQuery);
+
   const [draftTopics, setDraftTopics] = useState<string[]>([]);
   const [draftLive, setDraftLive] = useState(getDefaultLiveValue);
   const [topicMenuOpen, setTopicMenuOpen] = useState(false);
@@ -72,11 +90,13 @@ const ProjectDetailPage: React.FC = () => {
 
   useEffect(() => {
     setDraftDevelopers(selectedDevelopers);
+    setDraftRepositories(selectedRepositories);
     setDraftTopics(selectedTopics);
     setDraftPeriods(periods);
     setDraftLive(live);
   }, [
     selectedDevelopers,
+    selectedRepositories,
     selectedTopics,
     periods,
     live,
@@ -97,6 +117,7 @@ const ProjectDetailPage: React.FC = () => {
       isTeam ? 'team-detail' : 'project-detail',
       name,
       selectedDevelopers,
+      selectedRepositories,
       selectedTopics,
       periods,
       live,
@@ -110,6 +131,10 @@ const ProjectDetailPage: React.FC = () => {
 
       if (selectedDevelopers.length > 0) {
         params.username = selectedDevelopers;
+      }
+
+      if (isTeam && selectedRepositories.length > 0) {
+        params.project = selectedRepositories;
       }
 
       if (selectedTopics.length > 0) {
@@ -220,6 +245,24 @@ const ProjectDetailPage: React.FC = () => {
     [data],
   );
 
+  const repositoryOptions = useMemo(() => {
+    const repoSet = new Set<string>();
+
+    Object.values(developerMetrics).forEach(
+      (metrics) => {
+        Object.values(
+          metrics.changes_by_status_per_repo ?? {},
+        ).forEach((repos) => {
+          Object.keys(repos).forEach((repo) =>
+            repoSet.add(repo),
+          );
+        });
+      },
+    );
+
+    return Array.from(repoSet).sort();
+  }, [developerMetrics]);
+
   const projectOverview = useMemo(() => {
     const statusTotals = new Map<string, number>();
 
@@ -229,6 +272,7 @@ const ProjectDetailPage: React.FC = () => {
         total: number;
         statuses: Record<string, number>;
         developers: Set<string>;
+        developerTotals: Map<string, number>;
       }
     >();
 
@@ -257,9 +301,16 @@ const ProjectDetailPage: React.FC = () => {
                   total: 0,
                   statuses: {},
                   developers: new Set<string>(),
+                  developerTotals: new Map<string, number>(),
                 };
 
               repoEntry.total += count;
+
+              repoEntry.developerTotals.set(
+                developer,
+                (repoEntry.developerTotals.get(developer) ??
+                  0) + count,
+              );
 
               repoEntry.statuses[status] =
                 (repoEntry.statuses[status] ?? 0) +
@@ -342,6 +393,14 @@ const ProjectDetailPage: React.FC = () => {
         total: record.total,
         statuses: record.statuses,
         developerCount: record.developers.size,
+        developers: Array.from(
+          record.developerTotals.entries(),
+        )
+          .map(([developer, total]) => ({
+            developer,
+            total,
+          }))
+          .sort((a, b) => b.total - a.total),
       }))
       .sort((a, b) => b.total - a.total);
 
@@ -469,6 +528,11 @@ const ProjectDetailPage: React.FC = () => {
         ? `${selectedDevelopers.length} selected`
         : 'All developers';
 
+    const activeRepositories =
+      selectedRepositories.length
+        ? `${selectedRepositories.length} selected`
+        : 'All repositories';
+
     const activeTopics =
       selectedTopics.length
         ? `${selectedTopics.length} selected`
@@ -483,11 +547,13 @@ const ProjectDetailPage: React.FC = () => {
 
     return {
       activeDevelopers,
+      activeRepositories,
       activeTopics,
       activePeriods,
     };
   }, [
     selectedDevelopers,
+    selectedRepositories,
     selectedTopics,
     periods,
   ]);
@@ -513,6 +579,10 @@ const ProjectDetailPage: React.FC = () => {
       ...draftDevelopers,
     ]);
 
+    setSelectedRepositories([
+      ...draftRepositories,
+    ]);
+
     setSelectedTopics([
       ...draftTopics,
     ]);
@@ -527,11 +597,13 @@ const ProjectDetailPage: React.FC = () => {
 
   const handleResetFilters = () => {
     setDraftDevelopers([]);
+    setDraftRepositories([]);
     setDraftTopics([]);
     setDraftPeriods([]);
     setDraftLive(getDefaultLiveValue());
 
     setSelectedDevelopers([]);
+    setSelectedRepositories([]);
     setSelectedTopics([]);
     setPeriods([]);
     setLive(getDefaultLiveValue());
@@ -571,6 +643,12 @@ const ProjectDetailPage: React.FC = () => {
 
           <Chip
             label={
+              filterSummary.activeRepositories
+            }
+          />
+
+          <Chip
+            label={
               filterSummary.activeTopics
             }
           />
@@ -584,11 +662,11 @@ const ProjectDetailPage: React.FC = () => {
 
         <FilterBar
           developerOptions={developerOptions}
-          repositoryOptions={[projectName]}
+          repositoryOptions={repositoryOptions}
           topicOptions={topicOptions}
 
           selectedDeveloper={selectedDevelopers}
-          selectedRepositories={[]}
+          selectedRepositories={selectedRepositories}
           selectedTopics={selectedTopics}
 
           periods={periods}
@@ -597,13 +675,14 @@ const ProjectDetailPage: React.FC = () => {
           live={live}
 
           draftDeveloper={draftDevelopers}
-          draftRepositories={[]}
+          draftRepositories={draftRepositories}
           draftTopics={draftTopics}
           draftLive={draftLive}
 
-          showRepositorySelector={false}
+          showRepositorySelector={isTeam}
           showTopicSelector
           topicDisabled={
+            draftRepositories.length === 0 ||
             draftDevelopers.length === 0
           }
           developerMultiple
@@ -623,7 +702,10 @@ const ProjectDetailPage: React.FC = () => {
             setDraftTopics([]);
           }}
 
-          onRepositoryChange={() => undefined}
+          onRepositoryChange={(value) => {
+            setDraftRepositories(value);
+            setDraftTopics([]);
+          }}
 
           onTopicChange={setDraftTopics}
 
@@ -799,7 +881,13 @@ const ProjectDetailPage: React.FC = () => {
             />
           </SectionCard>
         )}
-
+      <Grid container spacing={2}>
+        <Grid
+          item
+          xs={12}
+          sm={6}
+          md={6}
+        >
         <ChartCard title="Changes by developer">
           <ResponsiveContainer
             width="100%"
@@ -834,7 +922,249 @@ const ProjectDetailPage: React.FC = () => {
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
+        </Grid>
+        <Grid
+          item
+          xs={12}
+          sm={6}
+          md={6}
+        >
+        <SectionCard title="Repository activity">
+          {projectOverview.repositoryDetails.length ? (
+            <Box
+              sx={{
+                maxHeight: 420,
+                overflowY: 'auto',
+                pr: 1,
+              }}
+            >
+              <Stack spacing={2}>
+                {projectOverview.repositoryDetails.map(
+                  (row) => {
+                    const total =
+                      row.total ?? 0;
 
+                    const segments = Object.entries(
+                      row.statuses,
+                    ).sort(
+                      (a, b) =>
+                        b[1] - a[1],
+                    );
+
+                    return (
+                      <Box
+                        key={row.repo}
+                        sx={{
+                          p: 2,
+                          borderRadius: 2,
+                          border:
+                            '1px solid rgba(255,255,255,0.08)',
+                        }}
+                      >
+                        <Stack
+                          direction="row"
+                          justifyContent="space-between"
+                          alignItems="center"
+                          flexWrap="wrap"
+                          spacing={2}
+                        >
+                          <Box>
+                            <Typography
+                              fontWeight={600}
+                            >
+                              <Link
+                                component={
+                                  RouterLink
+                                }
+                                to={`/gerrit/projects/${encodeURIComponent(
+                                  row.repo,
+                                )}`}
+                                underline="hover"
+                              >
+                                {row.repo}
+                              </Link>
+                            </Typography>
+
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                            >
+                              {total
+                                ? `${total} change${
+                                    total === 1
+                                      ? ''
+                                      : 's'
+                                  }`
+                                : 'No changes recorded'}
+                            </Typography>
+                          </Box>
+
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                          >
+                            {segments
+                              .map(
+                                ([
+                                  status,
+                                  value,
+                                ]) =>
+                                  `${status} ${value}`,
+                              )
+                              .join(' · ')}
+                          </Typography>
+                        </Stack>
+
+                        {total ? (
+                          <Box
+                            sx={{ mt: 2 }}
+                          >
+                            <Box
+                              sx={{
+                                display: 'flex',
+                                height: 12,
+                                borderRadius: 1,
+                                overflow:
+                                  'hidden',
+                                bgcolor:
+                                  'rgba(255,255,255,0.06)',
+                              }}
+                            >
+                              {segments.map(
+                                ([
+                                  status,
+                                  count,
+                                ]) => (
+                                  <Box
+                                    key={status}
+                                    sx={{
+                                      width: `${
+                                        (
+                                          count /
+                                          total
+                                        ) *
+                                        100
+                                      }%`,
+                                      bgcolor:
+                                        statusPalette[
+                                          status
+                                        ] ??
+                                        'primary.main',
+                                    }}
+                                    title={`${status}: ${count}`}
+                                  />
+                                ),
+                              )}
+                            </Box>
+                          </Box>
+                        ) : null}
+
+                        {row.developers.length ? (
+                          <Box sx={{ mt: 2 }}>
+                            <Stack spacing={1}>
+                              {row.developers.map(
+                                (dev) => (
+                                  <Box
+                                    key={
+                                      dev.developer
+                                    }
+                                    sx={{
+                                      display:
+                                        'flex',
+                                      alignItems:
+                                        'center',
+                                      justifyContent:
+                                        'space-between',
+                                    }}
+                                  >
+                                    <Typography
+                                      variant="body2"
+                                    >
+                                      <Link
+                                        component={
+                                          RouterLink
+                                        }
+                                        to={
+                                          isTeam
+                                            ? `/gerrit/developers/${encodeURIComponent(
+                                                dev.developer,
+                                              )}`
+                                            : `/gerrit/developers/${encodeURIComponent(
+                                                dev.developer,
+                                              )}?repo=${encodeURIComponent(
+                                                name,
+                                              )}`
+                                        }
+                                        underline="hover"
+                                      >
+                                        {dev.developer}
+                                      </Link>
+                                    </Typography>
+
+                                    <Box
+                                      sx={{
+                                        display:
+                                          'flex',
+                                        alignItems:
+                                          'center',
+                                        gap: 1,
+                                      }}
+                                    >
+                                      <Box
+                                        sx={{
+                                          width: 60,
+                                          height: 6,
+                                          borderRadius:
+                                            3,
+                                            bgcolor:
+                                              'rgba(255,255,255,0.08)',
+                                        }}
+                                      >
+                                        <Box
+                                          sx={{
+                                            width: `${Math.min(
+                                              100,
+                                              (dev.total /
+                                                total) *
+                                                100,
+                                            )}%`,
+                                            height: 6,
+                                            borderRadius:
+                                              3,
+                                            bgcolor:
+                                              'primary.main',
+                                          }}
+                                        />
+                                      </Box>
+
+                                      <Typography
+                                        variant="body2"
+                                        color="text.secondary"
+                                      >
+                                        {dev.total}
+                                      </Typography>
+                                    </Box>
+                                  </Box>
+                                ),
+                              )}
+                            </Stack>
+                          </Box>
+                        ) : null}
+                      </Box>
+                    );
+                  },
+                )}
+              </Stack>
+            </Box>
+          ) : (
+            <Typography color="text.secondary">
+              No repository activity found for the
+              current filters.
+            </Typography>
+          )}
+        </SectionCard>
+        </Grid>
+      </Grid>
         <SectionCard title="Collaboration network">
           <RelationshipGraph
             title="Project collaboration network"

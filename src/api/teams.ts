@@ -52,6 +52,7 @@ export const deleteTeam = async (teamId: number): Promise<void> => {
 export const fetchTeamPerformance = async (
   teamId: number,
   params: {
+    username?: string[];
     project?: string[];
     topic?: string[];
     periods?: Period[];
@@ -59,6 +60,7 @@ export const fetchTeamPerformance = async (
   } = {},
 ) => {
   const queryString = buildQueryString({
+    username: params.username,
     project: params.project,
     topic: params.topic,
     periods: params.periods,
