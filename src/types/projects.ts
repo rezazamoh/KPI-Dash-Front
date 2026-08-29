@@ -65,6 +65,11 @@ export interface ProjectDeveloperMetrics {
         failure_rate: number;
       }>;
     } | null;
+    patchset_gap_time: {
+      min: { duration: number; url?: string; change_number?: number };
+      mean: number;
+      max: { duration: number; url?: string; change_number?: number };
+    } | null;
   };
 }
 

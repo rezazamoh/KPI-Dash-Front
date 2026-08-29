@@ -2,7 +2,6 @@ import {
   Alert,
   Box,
   Button,
-  ButtonGroup,
   Chip,
   Collapse,
   Grid,
@@ -11,8 +10,6 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import TableChartIcon from '@mui/icons-material/TableChart';
-import BarChartIcon from '@mui/icons-material/BarChart';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Link as RouterLink,
@@ -31,42 +28,25 @@ import SectionCard from '@/components/ui/SectionCard';
 import FilterBar from '@/components/ui/Filters/FilterBar';
 import MetricsTable from '@/components/ui/MetricsTable';
 import RelationshipGraph from '@/components/ui/RelationshipGraph';
+import PeriodComparison from '@/components/ui/PeriodComparison';
 import {
   buildDeveloperRelationshipGraph,
   CollaborationMode,
 } from '@/utils/relationshipGraph';
 import {
-  DeveloperDetailResponse,
   PeopleStats,
 } from '@/types/developers';
-import { getDefaultLiveValue } from '@/utils/livePreference';
+import { formatPeriodLabel } from '@/utils/formatPeriodLabel';
+import { normalizePeriods } from '@/utils/periods';
 import { formatDuration } from '@/utils/formatDuration';
-import { Period } from '@/types/periods';
+import { getDefaultLiveValue } from '@/utils/livePreference';
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
-
-const formatPercent = (
-  value: number | null | undefined,
-) => {
-  if (
-    typeof value !== 'number' ||
-    Number.isNaN(value)
-  ) {
-    return '—';
-  }
-
-  return `${value.toFixed(2)}%`;
-};
+  buildComparisonRows,
+  cardDefinitions,
+  formatPercent,
+} from '@/metrics/types';
+import { developerMetrics } from '@/metrics/developerMetrics';
+import { Period } from '@/types/periods';
 
 const formatDeveloperTitle = (
   username: string,
@@ -79,80 +59,6 @@ const formatDeveloperTitle = (
         : '',
     )
     .join('. ');
-};
-
-const formatPeriodLabel = (
-  period: Period | null | undefined,
-  index: number,
-) => {
-  if (!period) {
-    return `Period ${index + 1}`;
-  }
-
-  const value = period as any;
-
-  const start =
-    value.start ??
-    value.start_date ??
-    value.from ??
-    null;
-
-  const end =
-    value.end ??
-    value.end_date ??
-    value.to ??
-    null;
-
-  if (!start && !end) {
-    return `Period ${index + 1}`;
-  }
-
-  const formatDate = (
-    dateValue: string | null,
-  ) => {
-    if (!dateValue) {
-      return 'Any';
-    }
-
-    const date = new Date(dateValue);
-
-    if (Number.isNaN(date.getTime())) {
-      return dateValue;
-    }
-
-    return date.toLocaleDateString(
-      undefined,
-      {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      },
-    );
-  };
-
-  return `${formatDate(start)} – ${formatDate(end)}`;
-};
-
-const normalizePeriods = (
-  periods: Period[],
-) => {
-  return periods.map((period) => {
-    const value = period as any;
-
-    return {
-      start:
-        value.start ??
-        value.start_date ??
-        value.from ??
-        null,
-
-      end:
-        value.end ??
-        value.end_date ??
-        value.to ??
-        null,
-    };
-  });
 };
 
 const sumPeople = (
@@ -287,12 +193,6 @@ const DeveloperDetailPage: React.FC = () => {
     showRawJson,
     setShowRawJson,
   ] = useState(false);
-
-  const [comparisonView, setComparisonView] = useState<
-    'table' | 'chart'
-  >('chart');
-
-  const [chartType, setChartType] = useState<'bar' | 'line'>('line');
 
   useEffect(() => {
     setDraftRepositories(
@@ -431,73 +331,19 @@ const DeveloperDetailPage: React.FC = () => {
     ).sort();
   }, [metrics]);
 
-  const comparisonRows = useMemo(() => {
-    return periodResults.map(
-      (result: any, index: number) => {
-        const resultMetrics =
-          result?.metrics
-            ?.overall_performance ?? {};
-
-        const failureRateRaw =
-          resultMetrics.build_failure_rate
-            ?.overall_failure_rate ?? null;
-
-        const leadTimeRaw =
-          resultMetrics.lead_time?.mean ?? null;
-
-        return {
-          period:
-            result?.period ??
-            periods[index] ??
-            null,
-
-          index,
-
-          changes:
-            resultMetrics.change_count ?? 0,
-
-          repositories:
-            resultMetrics.projects?.length ?? 0,
-
-          failureRate:
-            formatPercent(failureRateRaw),
-
-          failureRateRaw,
-
-          leadTime:
-            leadTimeRaw != null
-              ? formatDuration(leadTimeRaw)
-              : '—',
-
-          leadTimeRaw,
-        };
-      },
-    );
-  }, [periodResults, periods]);
-
-  const chartData = useMemo(
+  const comparisonRows = useMemo(
     () =>
-      comparisonRows.map((row) => {
-        const period = row.period as any;
-        const start = period?.start ?? period?.start_date ?? period?.from ?? null;
-        const end = period?.end ?? period?.end_date ?? period?.to ?? null;
-
-        const fmtShort = (v: string | null) => {
-          if (!v) return '';
-          const d = new Date(v);
-          if (Number.isNaN(d.getTime())) return v;
-          return `${d.getMonth() + 1}/${d.getDate()}`;
-        };
-
-        return {
-          period: start || end ? `${fmtShort(start)} – ${fmtShort(end)}` : `P${row.index + 1}`,
-          changes: row.changes,
-          repositories: row.repositories,
-          failureRate: row.failureRateRaw ?? 0,
-          leadTime: row.leadTimeRaw ?? 0,
-        };
-      }),
-    [comparisonRows],
+      buildComparisonRows(
+        periodResults,
+        periods,
+        (result) => {
+          const overall =
+            result?.overall_performance ?? null;
+          return overall ? [overall] : [];
+        },
+        developerMetrics,
+      ),
+    [periodResults, periods],
   );
 
   const collaborationPeers = useMemo(() => {
@@ -787,6 +633,10 @@ const DeveloperDetailPage: React.FC = () => {
     metrics.change_count > 0 ||
     hasAnyCollaboration;
 
+  const developerCards = cardDefinitions(developerMetrics);
+
+  const cardGridSize =  Math.floor(12 / developerCards.length);
+
   const handleApplyFilters = () => {
     setSelectedRepositories([
       ...draftRepositories,
@@ -948,79 +798,26 @@ const DeveloperDetailPage: React.FC = () => {
             ))}
           </Stack>
         <Grid container spacing={3}>
-          <Grid
-            item
-            xs={12}
-            md={3}
-          >
-            <MetricCard
-              title="Changes"
-              value={metrics.change_count}
-              subtitle={
-                metrics.change_count
-                  ? `Across ${totalRepositories} repositories`
-                  : 'No changes in selected scope'
-              }
-              accent="primary.main"
-            />
-          </Grid>
-
-          <Grid
-            item
-            xs={12}
-            md={3}
-          >
-            <MetricCard
-              title="Avg. patchsets"
-              value={
-                metrics.average_patchsets != null
-                  ? metrics.average_patchsets.toFixed(
-                      2,
-                    )
-                  : '—'
-              }
-              subtitle="Per change"
-              accent="secondary.main"
-            />
-          </Grid>
-
-          <Grid
-            item
-            xs={12}
-            md={3}
-          >
-            <MetricCard
-              title="Review response"
-              value={
-                metrics.reviewer_response_time
-                  ? formatDuration(metrics.reviewer_response_time.mean)
-                  : '—'
-              }
-              subtitle={
-                metrics.reviewer_response_time
-                  ? 'Average reviewer response time'
-                  : 'No data available'
-              }
-              accent="success.main"
-            />
-          </Grid>
-
-          <Grid
-            item
-            xs={12}
-            md={3}
-          >
-            <MetricCard
-              title="Lead time"
-              value={formatDuration(metrics.lead_time?.mean)}
-              subtitle={
-                metrics.lead_time
-                  ? 'Mean lead time'
-                  : 'No data available'
-              }
-              accent="info.main"
-            />
-          </Grid>
+          {developerCards.map((def) => (
+            <Grid
+              item
+              xs={12}
+              sm={6}
+              md={cardGridSize}
+              key={def.key}
+            >
+              <MetricCard
+                title={def.label}
+                value={String(
+                  def.format?.(def.value(metrics)) ??
+                    def.value(metrics) ??
+                    '',
+                )}
+                subtitle={def.card?.subtitle?.(metrics)}
+                accent={def.card?.accent}
+              />
+            </Grid>
+          ))}
         </Grid>
 
         <Grid container spacing={3}>
@@ -1289,6 +1086,62 @@ const DeveloperDetailPage: React.FC = () => {
                           </Typography>
                         </Stack>
                       )}
+                      
+                    </Box>
+                    <Box
+                      sx={{
+                        p: 2,
+                        borderRadius: 2,
+                        border:
+                          '1px solid rgba(255,255,255,0.08)',
+                      }}
+                    >
+                      <Typography variant="subtitle2">
+                        Patchset gap time
+                      </Typography>
+
+                      <Typography
+                        variant="h5"
+                        sx={{ mt: 1 }}
+                      >
+                        {formatDuration(metrics.patchset_gap_time?.mean)}
+                      </Typography>
+
+                      {metrics.patchset_gap_time && (
+                        <Stack spacing={0.5} sx={{ mt: 1 }}>
+                          <Typography variant="body2" color="text.secondary">
+                            Fastest:{' '}
+                            {metrics.patchset_gap_time.min.url ? (
+                              <Link
+                                href={metrics.patchset_gap_time.min.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                underline="hover"
+                              >
+                                {formatDuration(metrics.patchset_gap_time.min.duration)}
+                              </Link>
+                            ) : (
+                              formatDuration(metrics.patchset_gap_time.min.duration)
+                            )}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Slowest:{' '}
+                            {metrics.patchset_gap_time.max.url ? (
+                              <Link
+                                href={metrics.patchset_gap_time.max.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                underline="hover"
+                              >
+                                {formatDuration(metrics.patchset_gap_time.max.duration)}
+                              </Link>
+                            ) : (
+                              formatDuration(metrics.patchset_gap_time.max.duration)
+                            )}
+                          </Typography>
+                        </Stack>
+                      )}
+                      
                     </Box>
                   </Grid>
 
@@ -1316,6 +1169,7 @@ const DeveloperDetailPage: React.FC = () => {
                         {formatPercent(
                           metrics.build_failure_rate
                             ?.overall_failure_rate,
+                          2,
                         )}
                       </Typography>
 
@@ -1373,7 +1227,7 @@ const DeveloperDetailPage: React.FC = () => {
                             </Typography>
                             <Typography variant="body2">
                               Changes failure rate:{' '}
-                              {formatPercent(metrics.build_failure_rate.changes_failure_rate)}
+                              {formatPercent(metrics.build_failure_rate.changes_failure_rate, 2)}
                             </Typography>
 
                             {Object.keys(metrics.build_failure_rate.by_label).length > 0 && (
@@ -1384,7 +1238,7 @@ const DeveloperDetailPage: React.FC = () => {
                                 {Object.entries(metrics.build_failure_rate.by_label).map(
                                   ([label, detail]) => (
                                     <Typography key={label} variant="body2" color="text.secondary">
-                                      {label}: {detail.failed}/{detail.total} ({formatPercent(detail.failure_rate)})
+                                      {label}: {detail.failed}/{detail.total} ({formatPercent(detail.failure_rate, 2)})
                                     </Typography>
                                   ),
                                 )}
@@ -1576,141 +1430,17 @@ const DeveloperDetailPage: React.FC = () => {
           </Grid>
         </Grid>
         {periodResults.length > 1 && (
-          <SectionCard title="Period comparison">
-            <Stack spacing={2}>
-              <Stack
-                direction="row"
-                justifyContent="space-between"
-                alignItems="center"
-                flexWrap="wrap"
-                spacing={1}
-              >
-                <Typography
-                  color="text.secondary"
-                  variant="body2"
-                >
-                  Compare the selected periods or select a
-                  period to inspect its detailed metrics.
-                </Typography>
-
-                <ButtonGroup size="small" variant="outlined">
-                  <Button
-                    startIcon={<TableChartIcon />}
-                    color={comparisonView === 'table' ? 'primary' : 'inherit'}
-                    onClick={() => setComparisonView('table')}
-                  >
-                    Table
-                  </Button>
-                  <Button
-                    startIcon={<BarChartIcon />}
-                    color={comparisonView === 'chart' ? 'primary' : 'inherit'}
-                    onClick={() => setComparisonView('chart')}
-                  >
-                    Chart
-                  </Button>
-                </ButtonGroup>
-              </Stack>
-
-              {comparisonView === 'table' ? (
-                <MetricsTable
-                  columns={[
-                    {
-                      key: 'period',
-                      label: 'Period',
-                    },
-                    {
-                      key: 'changes',
-                      label: 'Changes',
-                    },
-                    {
-                      key: 'repositories',
-                      label: 'Repositories',
-                    },
-                    {
-                      key: 'failureRate',
-                      label: 'Failure rate',
-                    },
-                    {
-                      key: 'leadTime',
-                      label: 'Lead time',
-                    },
-                  ]}
-                  rows={comparisonRows.map(
-                    (row) => ({
-                      period:
-                        formatPeriodLabel(
-                          row.period,
-                          row.index,
-                        ),
-                      changes:
-                        row.changes,
-                      repositories:
-                        row.repositories,
-                      failureRate:
-                        row.failureRate,
-                      leadTime:
-                        row.leadTime,
-                    }),
-                  )}
-                />
-              ) : (
-                <Stack spacing={2}>
-                  <Stack direction="row" justifyContent="flex-end">
-                    <ButtonGroup size="small" variant="outlined">
-                      <Button
-                        color={chartType === 'bar' ? 'primary' : 'inherit'}
-                        onClick={() => setChartType('bar')}
-                      >
-                        Bar
-                      </Button>
-                      <Button
-                        color={chartType === 'line' ? 'primary' : 'inherit'}
-                        onClick={() => setChartType('line')}
-                      >
-                        Line
-                      </Button>
-                    </ButtonGroup>
-                  </Stack>
-
-                  <Grid container spacing={2}>
-                    {([
-                      { key: 'changes', label: 'Changes', color: '#00bcd4' },
-                      { key: 'repositories', label: 'Repositories', color: '#9c27b0' },
-                      { key: 'failureRate', label: 'Failure rate (%)', color: '#f44336' },
-                      { key: 'leadTime', label: 'Lead time', color: '#ff9800' },
-                    ] as const).map(({ key, label, color }) => (
-                      <Grid item xs={12} md={6} key={key}>
-                        <Box>
-                          <Typography variant="subtitle2" gutterBottom>
-                            {label}
-                          </Typography>
-                          <ResponsiveContainer width="100%" height={200}>
-                            {chartType === 'bar' ? (
-                              <BarChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                                <XAxis dataKey="period" stroke="#cfd8fc" tick={{ fontSize: 11 }} interval={0} angle={-30} textAnchor="end" height={50} />
-                                <YAxis stroke="#cfd8fc" tick={{ fontSize: 11 }} />
-                                <Tooltip />
-                                <Bar dataKey={key} fill={color} name={label} />
-                              </BarChart>
-                            ) : (
-                              <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                                <XAxis dataKey="period" stroke="#cfd8fc" tick={{ fontSize: 11 }} interval={0} angle={-30} textAnchor="end" height={50} />
-                                <YAxis stroke="#cfd8fc" tick={{ fontSize: 11 }} />
-                                <Tooltip />
-                                <Line type="monotone" dataKey={key} stroke={color} name={label} strokeWidth={2} dot={{ r: 3 }} />
-                              </LineChart>
-                            )}
-                          </ResponsiveContainer>
-                        </Box>
-                      </Grid>
-                    ))}
-                  </Grid>
-                </Stack>
-              )}
-            </Stack>
-          </SectionCard>
+          <PeriodComparison
+            periodResults={periodResults}
+            periods={periods}
+            selectMetrics={(result) => {
+              const overall =
+                result?.overall_performance ?? null;
+              return overall ? [overall] : [];
+            }}
+            metrics={developerMetrics}
+            description="Compare the selected periods or select a period to inspect its detailed metrics."
+          />
         )}
 
         <Grid

@@ -56,6 +56,11 @@ export interface DeveloperSnapshotMetrics {
     max: number;
   } | null;
   build_failure_rate: FailureRateDetail | null;
+  patchset_gap_time: {
+    min: LeadTimeValue;
+    mean: number;
+    max: LeadTimeValue;
+  } | null;
 }
 
 export interface DeveloperPerformanceMetrics  {
