@@ -35,12 +35,53 @@ interface LabelStats {
   values: Record<string, VoteStats>;
 }
 
+export interface RelationshipPerson {
+  username: string;
+  count: number;
+  by_label?: Record<string, LabelStats>;
+}
+
+export interface RelationshipStats {
+  per_person?: {
+    min: number;
+    mean: number;
+    max: number;
+  };
+  per_change?: {
+    min: number;
+    mean: number;
+    max: number;
+  };
+  by_label?: Record<
+    string,
+    {
+      total: number;
+      rate: number;
+      values: Record<string, VoteStats>;
+    }
+  >;
+}
+
+export interface RelationshipMetric {
+  people: RelationshipPerson[];
+  stats: RelationshipStats;
+}
+
 export interface RelationshipRow {
   username: string;
-  reviews: number;
-  comments: number;
+
+  reviewSent: number;
+  reviewReceived: number;
+  commentsSent: number;
+  commentsReceived: number;
   total: number;
-  by_label?: Record<string, LabelStats>;
+
+  breakdowns: {
+    reviewSent?: Record<string, LabelStats>;
+    reviewReceived?: Record<string, LabelStats>;
+    commentsSent?: Record<string, LabelStats>;
+    commentsReceived?: Record<string, LabelStats>;
+  };
 }
 
 interface RelationshipTableProps {
@@ -52,10 +93,9 @@ const RelationshipTable: React.FC<RelationshipTableProps> = ({
   rows,
   maxHeight,
 }) => {
-  const [order, setOrder] = useState<SortOrder>('asc');
-  const [orderBy, setOrderBy] = useState<keyof RelationshipRow | null>(
-    null,
-  );
+  const [order, setOrder] = useState<SortOrder>('desc');
+
+  const [orderBy, setOrderBy] = useState<keyof RelationshipRow | null>('total');
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const handleSort = (key: keyof RelationshipRow) => {
@@ -141,70 +181,69 @@ const RelationshipTable: React.FC<RelationshipTableProps> = ({
               <TableSortLabel
                 active={orderBy === 'username'}
                 direction={
-                  orderBy === 'username'
-                    ? order
-                    : 'asc'
+                  orderBy === 'username' ? order : 'asc'
                 }
-                onClick={() =>
-                  handleSort('username')
-                }
+                onClick={() => handleSort('username')}
               >
                 Person
               </TableSortLabel>
             </TableCell>
 
-            <TableCell
-              align="right"
-              sx={{ color: 'text.secondary' }}
-            >
+            <TableCell align="right" sx={{ color: 'text.secondary' }}>
               <TableSortLabel
-                active={orderBy === 'reviews'}
+                active={orderBy === 'reviewSent'}
                 direction={
-                  orderBy === 'reviews'
-                    ? order
-                    : 'asc'
+                  orderBy === 'reviewSent' ? order : 'asc'
                 }
-                onClick={() =>
-                  handleSort('reviews')
-                }
+                onClick={() => handleSort('reviewSent')}
               >
-                Reviews
+                Reviews sent
               </TableSortLabel>
             </TableCell>
 
-            <TableCell
-              align="right"
-              sx={{ color: 'text.secondary' }}
-            >
+            <TableCell align="right" sx={{ color: 'text.secondary' }}>
               <TableSortLabel
-                active={orderBy === 'comments'}
+                active={orderBy === 'reviewReceived'}
                 direction={
-                  orderBy === 'comments'
-                    ? order
-                    : 'asc'
+                  orderBy === 'reviewReceived' ? order : 'asc'
                 }
-                onClick={() =>
-                  handleSort('comments')
-                }
+                onClick={() => handleSort('reviewReceived')}
               >
-                Comments
+                Reviews received
               </TableSortLabel>
             </TableCell>
 
-            <TableCell
-              align="right"
-              sx={{ color: 'text.secondary' }}
-            >
+            <TableCell align="right" sx={{ color: 'text.secondary' }}>
+              <TableSortLabel
+                active={orderBy === 'commentsSent'}
+                direction={
+                  orderBy === 'commentsSent' ? order : 'asc'
+                }
+                onClick={() => handleSort('commentsSent')}
+              >
+                Comments sent
+              </TableSortLabel>
+            </TableCell>
+
+            <TableCell align="right" sx={{ color: 'text.secondary' }}>
+              <TableSortLabel
+                active={orderBy === 'commentsReceived'}
+                direction={
+                  orderBy === 'commentsReceived' ? order : 'asc'
+                }
+                onClick={() => handleSort('commentsReceived')}
+              >
+                Comments received
+              </TableSortLabel>
+            </TableCell>
+
+            <TableCell align="right" sx={{ color: 'text.secondary' }}>
               <TableSortLabel
                 active={orderBy === 'total'}
                 direction={
-                  orderBy === 'total'
-                    ? order
-                    : 'asc'
+                  orderBy === 'total' ? order : 'asc'
                 }
-                onClick={() =>
-                  handleSort('total')
-                }
+                onClick={() => handleSort('total')}
               >
                 Total
               </TableSortLabel>
@@ -234,98 +273,92 @@ const RelationshipTable: React.FC<RelationshipTableProps> = ({
   );
 };
 
-interface RelationshipRowsProps {
-  row: RelationshipRow;
-  isExpanded: boolean;
-  onToggle: () => void;
-}
+// NOTE: this helper references `getOverallTotal`, which isn't defined
+// anywhere in the file. It's not called by anything below, so it doesn't
+// break compilation, but it will throw a ReferenceError if you ever call
+// `recalculateLabelStats` at runtime. Flagging it since it looked like
+// dead/unfinished code — let me know if you want this fleshed out.
+const mergeLabelStats = (
+  target: Record<string, LabelStats>,
+  source?: Record<string, LabelStats>,
+) => {
+  if (!source) return;
 
-const RelationshipRows: React.FC<
-  RelationshipRowsProps
-> = ({
-  row,
-  isExpanded,
-  onToggle,
-}) => {
-  return (
-    <>
-      <TableRow hover>
-        <TableCell>
-          <IconButton
-            size="small"
-            onClick={onToggle}
-            disabled={
-              !row.by_label ||
-              Object.keys(row.by_label).length === 0
-            }
-          >
-            {isExpanded ? (
-              <KeyboardArrowUp />
-            ) : (
-              <KeyboardArrowDown />
-            )}
-          </IconButton>
-        </TableCell>
+  Object.entries(source).forEach(
+    ([label, stats]) => {
+      const existing = target[label];
 
-        <TableCell>{row.username}</TableCell>
+      if (!existing) {
+        target[label] = {
+          total: stats.total,
+          positive: stats.positive,
+          negative: stats.negative,
+          values: { ...stats.values },
+        };
+        return;
+      }
 
-        <TableCell align="right">
-          {row.reviews}
-        </TableCell>
+      existing.total += stats.total;
+      existing.positive += stats.positive;
+      existing.negative += stats.negative;
 
-        <TableCell align="right">
-          {row.comments}
-        </TableCell>
+      Object.entries(stats.values).forEach(
+        ([value, vote]) => {
+          const existingVote =
+            existing.values[value];
 
-        <TableCell align="right">
-          {row.total}
-        </TableCell>
-      </TableRow>
-
-      <TableRow>
-        <TableCell
-          colSpan={5}
-          sx={{
-            p: 0,
-            borderBottom: isExpanded
-              ? undefined
-              : 'none',
-          }}
-        >
-          <Collapse
-            in={isExpanded}
-            timeout="auto"
-            unmountOnExit
-          >
-            <ReviewBreakdown
-              breakdown={row.by_label}
-            />
-          </Collapse>
-        </TableCell>
-      </TableRow>
-    </>
+          if (!existingVote) {
+            existing.values[value] = {
+              ...vote,
+            };
+          } else {
+            existingVote.total += vote.total;
+            existingVote.rate = 0;
+            existingVote.value_rate = 0;
+          }
+        },
+      );
+    },
   );
 };
 
-const ReviewBreakdown: React.FC<{
-  breakdown?: Record<string, LabelStats>;
-}> = ({ breakdown }) => {
-  if (
-    !breakdown ||
-    Object.keys(breakdown).length === 0
-  ) {
-    return (
-      <Box sx={{ p: 2 }}>
-        <Typography
-          variant="body2"
-          color="text.secondary"
-        >
-          No detailed review data available.
-        </Typography>
-      </Box>
-    );
-  }
+const recalculateLabelStats = (
+  labels: Record<string, LabelStats>,
+) => {
+  Object.values(labels).forEach((stats) => {
+    Object.values(stats.values).forEach(
+      (vote) => {
+        vote.rate =
+          stats.total > 0
+            ? Number(
+                (
+                  (vote.total / getOverallTotal(labels)) *
+                  100
+                ).toFixed(2),
+              )
+            : 0;
 
+        vote.value_rate =
+          stats.total > 0
+            ? Number(
+                (
+                  (vote.total / stats.total) *
+                  100
+                ).toFixed(2),
+              )
+            : 0;
+      },
+    );
+  });
+};
+
+interface ReviewBreakdownProps {
+  breakdown: Record<string, LabelStats>;
+}
+
+const ReviewBreakdown: React.FC<ReviewBreakdownProps> = ({
+  breakdown,
+}) => {
   return (
     <Box sx={{ p: 2, pl: 6 }}>
       <Typography
@@ -388,6 +421,168 @@ const ReviewBreakdown: React.FC<{
         )}
       </Stack>
     </Box>
+  );
+};
+
+const RelationshipBreakdown: React.FC<{
+  breakdowns: RelationshipRow['breakdowns'];
+}> = ({ breakdowns }) => {
+  const sections = [
+    {
+      key: 'reviewSent',
+      label: 'Reviews sent',
+      breakdown: breakdowns.reviewSent,
+    },
+    {
+      key: 'reviewReceived',
+      label: 'Reviews received',
+      breakdown: breakdowns.reviewReceived,
+    },
+    {
+      key: 'commentsSent',
+      label: 'Comments sent',
+      breakdown: breakdowns.commentsSent,
+    },
+    {
+      key: 'commentsReceived',
+      label: 'Comments received',
+      breakdown: breakdowns.commentsReceived,
+    },
+  ] as const;
+
+  const availableSections = sections.filter(
+    ({ breakdown }) =>
+      breakdown &&
+      Object.keys(breakdown).length > 0,
+  );
+
+  if (!availableSections.length) {
+    return (
+      <Box sx={{ p: 2 }}>
+        <Typography
+          variant="body2"
+          color="text.secondary"
+        >
+          No detailed relationship data available.
+        </Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ p: 2, pl: 6 }}>
+      <Typography
+        variant="subtitle2"
+        sx={{ mb: 2 }}
+      >
+        Relationship breakdown
+      </Typography>
+
+      <Stack spacing={3}>
+        {availableSections.map(
+          ({ key, label, breakdown }) => (
+            <Box key={key}>
+              <Typography
+                variant="body2"
+                fontWeight={600}
+                sx={{ mb: 1 }}
+              >
+                {label}
+              </Typography>
+
+              <ReviewBreakdown
+                breakdown={breakdown!}
+              />
+            </Box>
+          ),
+        )}
+      </Stack>
+    </Box>
+  );
+};
+
+interface RelationshipRowsProps {
+  row: RelationshipRow;
+  isExpanded: boolean;
+  onToggle: () => void;
+}
+
+const RelationshipRows: React.FC<
+  RelationshipRowsProps
+> = ({
+  row,
+  isExpanded,
+  onToggle,
+}) => {
+  const hasBreakdown =
+    Object.values(row.breakdowns).some(
+      (breakdown) =>
+        breakdown &&
+        Object.keys(breakdown).length > 0,
+    );
+
+  return (
+    <>
+      <TableRow hover>
+        <TableCell>
+          <IconButton
+            size="small"
+            onClick={onToggle}
+            disabled={!hasBreakdown}
+          >
+            {isExpanded ? (
+              <KeyboardArrowUp />
+            ) : (
+              <KeyboardArrowDown />
+            )}
+          </IconButton>
+        </TableCell>
+
+        <TableCell>{row.username}</TableCell>
+
+        <TableCell align="right">
+          {row.reviewSent}
+        </TableCell>
+
+        <TableCell align="right">
+          {row.reviewReceived}
+        </TableCell>
+
+        <TableCell align="right">
+          {row.commentsSent}
+        </TableCell>
+
+        <TableCell align="right">
+          {row.commentsReceived}
+        </TableCell>
+
+        <TableCell align="right">
+          {row.total}
+        </TableCell>
+      </TableRow>
+
+      <TableRow>
+        <TableCell
+          colSpan={7}
+          sx={{
+            p: 0,
+            borderBottom: isExpanded
+              ? undefined
+              : 'none',
+          }}
+        >
+          <Collapse
+            in={isExpanded}
+            timeout="auto"
+            unmountOnExit
+          >
+            <RelationshipBreakdown
+              breakdowns={row.breakdowns}
+            />
+          </Collapse>
+        </TableCell>
+      </TableRow>
+    </>
   );
 };
 

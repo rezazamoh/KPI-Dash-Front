@@ -28,6 +28,7 @@ import SectionCard from '@/components/ui/SectionCard';
 import FilterBar from '@/components/ui/Filters/FilterBar';
 import MetricsTable from '@/components/ui/MetricsTable';
 import RelationshipGraph from '@/components/ui/RelationshipGraph';
+import RelationshipTable from '@/components/ui/RelationshipTable';
 import PeriodComparison from '@/components/ui/PeriodComparison';
 import {
   buildDeveloperRelationshipGraph,
@@ -383,56 +384,68 @@ const DeveloperDetailPage: React.FC = () => {
     return Array.from(peerSet).sort();
   }, [metrics]);
 
-  const collaborationRows = useMemo(() => {
-    return collaborationPeers
-      .map((peer) => {
-        const sentReviews =
-          metrics?.review_requests_sent?.people.find(
-            (item) =>
-              item.username === peer,
-          )?.count ?? 0;
+const collaborationRows = useMemo(() => {
+  return collaborationPeers
+    .map((peer) => {
+      const sentReview =
+        metrics?.review_requests_sent?.people.find(
+          (item) => item.username === peer,
+        );
 
-        const receivedReviews =
-          metrics?.review_requests_received?.people.find(
-            (item) =>
-              item.username === peer,
-          )?.count ?? 0;
+      const receivedReview =
+        metrics?.review_requests_received?.people.find(
+          (item) => item.username === peer,
+        );
 
-        const sentComments =
-          metrics?.comments_sent?.people.find(
-            (item) =>
-              item.username === peer,
-          )?.count ?? 0;
+      const sentComments =
+        metrics?.comments_sent?.people.find(
+          (item) => item.username === peer,
+        );
 
-        const receivedComments =
-          metrics?.comments_received?.people.find(
-            (item) =>
-              item.username === peer,
-          )?.count ?? 0;
+      const receivedComments =
+        metrics?.comments_received?.people.find(
+          (item) => item.username === peer,
+        );
 
-        return {
-          username: peer,
-          reviewSent: sentReviews,
+      const reviewSent =
+        sentReview?.count ?? 0;
+
+      const reviewReceived =
+        receivedReview?.count ?? 0;
+
+      const commentsSent =
+        sentComments?.count ?? 0;
+
+      const commentsReceived =
+        receivedComments?.count ?? 0;
+
+      return {
+        username: peer,
+
+        reviewSent,
+        reviewReceived,
+        commentsSent,
+        commentsReceived,
+
+        total:
+          reviewSent +
+          reviewReceived +
+          commentsSent +
+          commentsReceived,
+
+        breakdowns: {
+          reviewSent: sentReview?.by_label,
           reviewReceived:
-            receivedReviews,
-          commentsSent: sentComments,
+            receivedReview?.by_label,
+          commentsSent:
+            sentComments?.by_label,
           commentsReceived:
-            receivedComments,
-          total:
-            sentReviews +
-            receivedReviews +
-            sentComments +
-            receivedComments,
-        };
-      })
-      .sort(
-        (a, b) => b.total - a.total,
-      );
-  }, [
-    collaborationPeers,
-    metrics,
-  ]);
-
+            receivedComments?.by_label,
+        },
+      };
+    })
+    .sort((a, b) => b.total - a.total);
+}, [collaborationPeers, metrics]);
   const totalRepositories = useMemo(() => {
     const repoSet = new Set<string>();
 
@@ -1315,44 +1328,12 @@ const DeveloperDetailPage: React.FC = () => {
           )}
         </SectionCard>
 
-        <SectionCard title="Collaboration details">
-          <Box
-            sx={{
-              maxHeight: 360,
-              overflowY: 'auto',
-            }}
-          >
-            <MetricsTable
-              columns={[
-                {
-                  key: 'username',
-                  label: 'Person',
-                },
-                {
-                  key: 'reviewSent',
-                  label: 'Reviews sent',
-                },
-                {
-                  key: 'reviewReceived',
-                  label: 'Reviews received',
-                },
-                {
-                  key: 'commentsSent',
-                  label: 'Comments sent',
-                },
-                {
-                  key: 'commentsReceived',
-                  label: 'Comments received',
-                },
-                {
-                  key: 'total',
-                  label: 'Total',
-                },
-              ]}
-              rows={collaborationRows}
-            />
-          </Box>
-        </SectionCard>
+      <SectionCard title="Collaboration details">
+        <RelationshipTable
+          rows={collaborationRows}
+          maxHeight={360}
+        />
+      </SectionCard>
 
         <Grid container spacing={3}>
           <Grid

@@ -20,6 +20,7 @@ import SectionCard from '@/components/ui/SectionCard';
 import FilterBar from '@/components/ui/Filters/FilterBar';
 import ChartCard from '@/components/ui/ChartCard';
 import RelationshipGraph from '@/components/ui/RelationshipGraph';
+import mergeLabelStats  from '@/components/ui/RelationshipGraph';
 import MetricsTable from '@/components/ui/MetricsTable';
 import PeriodComparison from '@/components/ui/PeriodComparison';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -279,9 +280,18 @@ const ProjectDetailPage: React.FC = () => {
     const collaboratorTotals = new Map<
       string,
       {
-        reviews: number;
-        comments: number;
+        reviewSent: number;
+        reviewReceived: number;
+        commentsSent: number;
+        commentsReceived: number;
         total: number;
+
+        breakdowns: {
+          reviewSent: Record<string, LabelStats>;
+          reviewReceived: Record<string, LabelStats>;
+          commentsSent: Record<string, LabelStats>;
+          commentsReceived: Record<string, LabelStats>;
+        };
       }
     >();
 
@@ -328,50 +338,71 @@ const ProjectDetailPage: React.FC = () => {
           );
         });
 
-        const metricsWithPeople = [
-          {
-            metric: metrics.review_requests_sent,
-            field: 'reviews' as const,
-          },
-          {
-            metric: metrics.review_requests_received,
-            field: 'reviews' as const,
-          },
-          {
-            metric: metrics.comments_sent,
-            field: 'comments' as const,
-          },
-          {
-            metric: metrics.comments_received,
-            field: 'comments' as const,
-          },
-        ];
+const metricsWithPeople = [
+  {
+    metric: metrics.review_requests_sent,
+    field: 'reviewSent' as const,
+    breakdown: 'reviewSent' as const,
+  },
+  {
+    metric: metrics.review_requests_received,
+    field: 'reviewReceived' as const,
+    breakdown: 'reviewReceived' as const,
+  },
+  {
+    metric: metrics.comments_sent,
+    field: 'commentsSent' as const,
+    breakdown: 'commentsSent' as const,
+  },
+  {
+    metric: metrics.comments_received,
+    field: 'commentsReceived' as const,
+    breakdown: 'commentsReceived' as const,
+  },
+];
 
-        metricsWithPeople.forEach(
-          ({ metric, field }) => {
-            metric?.people?.forEach((person) => {
-              const existing =
-                collaboratorTotals.get(person.username) ?? {
-                  reviews: 0,
-                  comments: 0,
-                  total: 0,
-                };
+metricsWithPeople.forEach(
+  ({ metric, field, breakdown }) => {
+    metric?.people?.forEach((person) => {
+      const existing =
+        collaboratorTotals.get(
+          person.username,
+        ) ?? {
+          username: person.username,
+          reviewSent: 0,
+          reviewReceived: 0,
+          commentsSent: 0,
+          commentsReceived: 0,
+          total: 0,
+          breakdowns: {},
+        };
 
-              if (field === 'reviews') {
-                existing.reviews += person.count;
-              } else {
-                existing.comments += person.count;
-              }
+      existing[field] += person.count;
+      existing.total += person.count;
 
-              existing.total += person.count;
+      if (person.by_label) {
+        const current =
+          existing.breakdowns[breakdown];
 
-              collaboratorTotals.set(
-                person.username,
-                existing,
-              );
-            });
-          },
-        );
+        if (!current) {
+          existing.breakdowns[breakdown] =
+            structuredClone(person.by_label);
+        } else {
+          mergeLabelStats(
+            current,
+            person.by_label,
+          );
+        }
+      }
+
+      collaboratorTotals.set(
+        person.username,
+        existing,
+      );
+    });
+  },
+);
+
       },
     );
 
@@ -404,14 +435,9 @@ const ProjectDetailPage: React.FC = () => {
       }))
       .sort((a, b) => b.total - a.total);
 
-    const topCollaborators = Array.from(
-      collaboratorTotals.entries(),
-    )
-      .map(([username, totals]) => ({
-        username,
-        ...totals,
-      }))
-      .sort((a, b) => b.total - a.total);
+  const topCollaborators = Array.from(
+    collaboratorTotals.values(),
+  ).sort((a, b) => b.total - a.total);
 
     return {
       totalDevelopers:
@@ -1193,22 +1219,11 @@ const ProjectDetailPage: React.FC = () => {
           />
         </SectionCard>
 
-        {projectOverview.topCollaborators.length >
-        0 ? (
+        {projectOverview.topCollaborators.length > 0 ? (
           <SectionCard title="Reviewer/commenter relationships">
-            <MetricsTable
-              columns={[
-                { key: 'username', label: 'Person' },
-                { key: 'reviews', label: 'Reviews' },
-                { key: 'comments', label: 'Comments' },
-                { key: 'total', label: 'Total' },
-              ]}
-              rows={projectOverview.topCollaborators.map((item) => ({
-                username: item.username,
-                reviews: item.reviews,
-                comments: item.comments,
-                total: item.total,
-              }))}
+            <RelationshipTable
+              rows={projectOverview.topCollaborators}
+              maxHeight={360}
             />
           </SectionCard>
         ) : null}
