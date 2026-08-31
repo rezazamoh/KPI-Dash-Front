@@ -22,13 +22,13 @@ import {
 
 type SortOrder = 'asc' | 'desc';
 
-interface VoteStats {
+export interface VoteStats {
   total: number;
   rate: number;
   value_rate: number;
 }
 
-interface LabelStats {
+export interface LabelStats {
   total: number;
   positive: number;
   negative: number;
@@ -273,12 +273,67 @@ const RelationshipTable: React.FC<RelationshipTableProps> = ({
   );
 };
 
-// NOTE: this helper references `getOverallTotal`, which isn't defined
-// anywhere in the file. It's not called by anything below, so it doesn't
-// break compilation, but it will throw a ReferenceError if you ever call
-// `recalculateLabelStats` at runtime. Flagging it since it looked like
-// dead/unfinished code — let me know if you want this fleshed out.
-const mergeLabelStats = (
+const getOverallTotal = (
+  labels: Record<string, LabelStats>,
+) =>
+  Object.values(labels).reduce(
+    (sum, stats) => sum + (stats.total ?? 0),
+    0,
+  );
+
+const toVoteCount = (vote: number | VoteStats | undefined): number =>
+  typeof vote === 'number'
+    ? vote
+    : Number(vote?.total ?? 0);
+
+export const normalizeLabelStats = (
+  byLabel?: Record<string, unknown> | null,
+): Record<string, LabelStats> => {
+  const normalized: Record<string, LabelStats> = {};
+
+  Object.entries(byLabel ?? {}).forEach(
+    ([label, raw]) => {
+      const entry = (raw ?? {}) as {
+        total?: number;
+        positive?: number;
+        negative?: number;
+        values?: Record<string, number | VoteStats>;
+      };
+
+      const values = entry.values ?? {};
+
+      const stats: LabelStats = {
+        total:
+          entry.total ??
+          Object.values(values).reduce(
+            (sum, vote) => sum + toVoteCount(vote),
+            0,
+          ),
+        positive: entry.positive ?? 0,
+        negative: entry.negative ?? 0,
+        values: {},
+      };
+
+      Object.entries(values).forEach(
+        ([value, vote]) => {
+          stats.values[value] = {
+            total: toVoteCount(vote),
+            rate: 0,
+            value_rate: 0,
+          };
+        },
+      );
+
+      normalized[label] = stats;
+    },
+  );
+
+  recalculateLabelStats(normalized);
+
+  return normalized;
+};
+
+export const mergeLabelStats = (
   target: Record<string, LabelStats>,
   source?: Record<string, LabelStats>,
 ) => {
@@ -293,7 +348,11 @@ const mergeLabelStats = (
           total: stats.total,
           positive: stats.positive,
           negative: stats.negative,
-          values: { ...stats.values },
+          values: Object.fromEntries(
+            Object.entries(stats.values).map(
+              ([value, vote]) => [value, { ...vote }],
+            ),
+          ),
         };
         return;
       }
@@ -313,13 +372,13 @@ const mergeLabelStats = (
             };
           } else {
             existingVote.total += vote.total;
-            existingVote.rate = 0;
-            existingVote.value_rate = 0;
           }
         },
       );
     },
   );
+
+  recalculateLabelStats(target);
 };
 
 const recalculateLabelStats = (

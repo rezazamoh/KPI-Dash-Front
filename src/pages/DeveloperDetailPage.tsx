@@ -28,7 +28,10 @@ import SectionCard from '@/components/ui/SectionCard';
 import FilterBar from '@/components/ui/Filters/FilterBar';
 import MetricsTable from '@/components/ui/MetricsTable';
 import RelationshipGraph from '@/components/ui/RelationshipGraph';
-import RelationshipTable from '@/components/ui/RelationshipTable';
+import { GapDistributionChart } from '@/components/ui/GapDistributionChart';
+import RelationshipTable, {
+  normalizeLabelStats,
+} from '@/components/ui/RelationshipTable';
 import PeriodComparison from '@/components/ui/PeriodComparison';
 import {
   buildDeveloperRelationshipGraph,
@@ -188,7 +191,7 @@ const DeveloperDetailPage: React.FC = () => {
   const [
     showBuildFailureDetails,
     setShowBuildFailureDetails,
-  ] = useState(false);
+  ] = useState(true);
 
   const [
     showRawJson,
@@ -434,13 +437,18 @@ const collaborationRows = useMemo(() => {
           commentsReceived,
 
         breakdowns: {
-          reviewSent: sentReview?.by_label,
-          reviewReceived:
+          reviewSent: normalizeLabelStats(
+            sentReview?.by_label,
+          ),
+          reviewReceived: normalizeLabelStats(
             receivedReview?.by_label,
-          commentsSent:
+          ),
+          commentsSent: normalizeLabelStats(
             sentComments?.by_label,
-          commentsReceived:
+          ),
+          commentsReceived: normalizeLabelStats(
             receivedComments?.by_label,
+          ),
         },
       };
     })
@@ -832,7 +840,7 @@ const collaborationRows = useMemo(() => {
             </Grid>
           ))}
         </Grid>
-
+          
         <Grid container spacing={3}>
           <Grid
             item
@@ -981,7 +989,6 @@ const collaborationRows = useMemo(() => {
               )}
             </SectionCard>
           </Grid>
-
           <Grid
             item
             xs={12}
@@ -1267,6 +1274,32 @@ const collaborationRows = useMemo(() => {
             </SectionCard>
           </Grid>
         </Grid>
+        <SectionCard title="Time related metrics disturbution">
+            <Grid container spacing={2}>
+                <Grid
+                    item
+                    xs={12}
+                    sm={6}
+                  >
+                <GapDistributionChart
+                  data={metrics.patchset_gap_time}
+                  title="Patchset gap distribution"
+                />
+              </Grid>
+              <Grid
+                    item
+                    xs={12}
+                    sm={6}
+                  >
+                <GapDistributionChart
+                  data={metrics.lead_time}
+                  title="Lead times distribution"
+                />
+              </Grid>
+            </Grid>
+
+          
+        </SectionCard>
 
         <SectionCard title="File hotspots">
           <MetricsTable

@@ -20,7 +20,12 @@ import SectionCard from '@/components/ui/SectionCard';
 import FilterBar from '@/components/ui/Filters/FilterBar';
 import ChartCard from '@/components/ui/ChartCard';
 import RelationshipGraph from '@/components/ui/RelationshipGraph';
-import mergeLabelStats  from '@/components/ui/RelationshipGraph';
+import { mergeLabelStats } from '@/components/ui/RelationshipTable';
+import RelationshipTable from '@/components/ui/RelationshipTable';
+import type {
+  LabelStats,
+  VoteStats,
+} from '@/components/ui/RelationshipTable';
 import MetricsTable from '@/components/ui/MetricsTable';
 import PeriodComparison from '@/components/ui/PeriodComparison';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -44,6 +49,80 @@ const statusPalette: Record<string, string> = {
   DRAFT: 'info.main',
   NEEDS_REVIEW: 'secondary.main',
 };
+
+const toCount = (vote: number | VoteStats | undefined): number =>
+  typeof vote === 'number'
+    ? vote
+    : Number(vote?.total ?? 0);
+
+const normalizeLabelStats = (
+  byLabel: Record<string, unknown>,
+): Record<string, LabelStats> => {
+  const normalized: Record<string, LabelStats> = {};
+
+  Object.entries(byLabel ?? {}).forEach(
+    ([label, raw]) => {
+      const entry = (raw ?? {}) as {
+        total?: number;
+        positive?: number;
+        negative?: number;
+        values?: Record<string, number | VoteStats>;
+      };
+
+      const values = entry.values ?? {};
+
+      const labelTotal =
+        entry.total ??
+        Object.values(values).reduce(
+          (sum, vote) => sum + toCount(vote),
+          0,
+        );
+
+      const stats: LabelStats = {
+        total: labelTotal,
+        positive: entry.positive ?? 0,
+        negative: entry.negative ?? 0,
+        values: {},
+      };
+
+      Object.entries(values).forEach(
+        ([value, vote]) => {
+          const total = toCount(vote);
+
+          stats.values[value] = {
+            total,
+            rate: 0,
+            value_rate:
+              labelTotal > 0
+                ? Number(
+                    ((total / labelTotal) * 100).toFixed(2),
+                  )
+                : 0,
+          };
+        },
+      );
+
+      normalized[label] = stats;
+    },
+  );
+
+  return normalized;
+};
+
+interface CollaboratorEntry {
+  username: string;
+  reviewSent: number;
+  reviewReceived: number;
+  commentsSent: number;
+  commentsReceived: number;
+  total: number;
+  breakdowns: {
+    reviewSent?: Record<string, LabelStats>;
+    reviewReceived?: Record<string, LabelStats>;
+    commentsSent?: Record<string, LabelStats>;
+    commentsReceived?: Record<string, LabelStats>;
+  };
+}
 
 const ProjectDetailPage: React.FC = () => {
   const { project, team } = useParams<{
@@ -279,20 +358,7 @@ const ProjectDetailPage: React.FC = () => {
 
     const collaboratorTotals = new Map<
       string,
-      {
-        reviewSent: number;
-        reviewReceived: number;
-        commentsSent: number;
-        commentsReceived: number;
-        total: number;
-
-        breakdowns: {
-          reviewSent: Record<string, LabelStats>;
-          reviewReceived: Record<string, LabelStats>;
-          commentsSent: Record<string, LabelStats>;
-          commentsReceived: Record<string, LabelStats>;
-        };
-      }
+      CollaboratorEntry
     >();
 
     let totalChanges = 0;
@@ -364,7 +430,7 @@ const metricsWithPeople = [
 metricsWithPeople.forEach(
   ({ metric, field, breakdown }) => {
     metric?.people?.forEach((person) => {
-      const existing =
+      const existing: CollaboratorEntry =
         collaboratorTotals.get(
           person.username,
         ) ?? {
@@ -381,16 +447,20 @@ metricsWithPeople.forEach(
       existing.total += person.count;
 
       if (person.by_label) {
+        const incoming = normalizeLabelStats(
+          person.by_label,
+        );
+
         const current =
           existing.breakdowns[breakdown];
 
         if (!current) {
           existing.breakdowns[breakdown] =
-            structuredClone(person.by_label);
+            structuredClone(incoming);
         } else {
           mergeLabelStats(
             current,
-            person.by_label,
+            incoming,
           );
         }
       }
@@ -907,6 +977,32 @@ metricsWithPeople.forEach(
             />
           </SectionCard>
         )}
+      <SectionCard title="Time related metrics disturbution">
+            <Grid container spacing={2}>
+                <Grid
+                    item
+                    xs={12}
+                    sm={6}
+                  >
+                <GapDistributionChart
+                  data={metrics.patchset_gap_time}
+                  title="Patchset gap distribution"
+                />
+              </Grid>
+              <Grid
+                    item
+                    xs={12}
+                    sm={6}
+                  >
+                <GapDistributionChart
+                  data={metrics.lead_time}
+                  title="Lead times distribution"
+                />
+              </Grid>
+            </Grid>
+
+          
+        </SectionCard>
       <Grid container spacing={2}>
         <Grid
           item
