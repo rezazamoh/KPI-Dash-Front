@@ -26,6 +26,7 @@ import {
   formatPeriodLabel,
   formatPeriodLabelShort,
 } from '@/utils/formatPeriodLabel';
+import { formatDuration } from '@/utils/formatDuration';
 import {
   buildComparisonRows,
   comparisonDefinitions,
@@ -70,6 +71,27 @@ function PeriodComparison<T, M>({
       ),
     [periodResults, periods, selectMetrics, metrics],
   );
+
+  const formatChartValue = (metric: MetricDefinition<M>, value: unknown) => {
+    const normalizedKey = metric.key.toLowerCase();
+    const looksLikeDurationMetric =
+      normalizedKey.includes('lead') ||
+      normalizedKey.includes('gap') ||
+      normalizedKey.includes('response') ||
+      normalizedKey.includes('duration') ||
+      normalizedKey.includes('time');
+
+    if (typeof value === 'number' && looksLikeDurationMetric) {
+      return formatDuration(value);
+    }
+
+    if (typeof metric.comparison?.format === 'function') {
+      const formatted = metric.comparison.format(value);
+      return typeof formatted === 'string' ? formatted : String(formatted ?? '—');
+    }
+
+    return typeof value === 'number' ? String(value) : '—';
+  };
 
   const chartData = useMemo(
     () =>
@@ -220,8 +242,16 @@ function PeriodComparison<T, M>({
                           <YAxis
                             stroke="#cfd8fc"
                             tick={{ fontSize: 11 }}
+                            tickFormatter={(value) =>
+                              formatChartValue(metric, value)
+                            }
                           />
-                          <Tooltip />
+                          <Tooltip
+                            formatter={(value) => [
+                              formatChartValue(metric, value),
+                              metric.comparison?.label ?? metric.label,
+                            ]}
+                          />
                           <Bar
                             dataKey={metric.key}
                             fill={metric.comparison?.color}
@@ -254,8 +284,16 @@ function PeriodComparison<T, M>({
                           <YAxis
                             stroke="#cfd8fc"
                             tick={{ fontSize: 11 }}
+                            tickFormatter={(value) =>
+                              formatChartValue(metric, value)
+                            }
                           />
-                          <Tooltip />
+                          <Tooltip
+                            formatter={(value) => [
+                              formatChartValue(metric, value),
+                              metric.comparison?.label ?? metric.label,
+                            ]}
+                          />
                           <Line
                             type="monotone"
                             dataKey={metric.key}

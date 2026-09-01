@@ -2,33 +2,21 @@
 import MainLayout from '@/layouts/MainLayout';
 import GerritDashboardPage from '@/pages/GerritDashboardPage';
 import SignInPage from '@/pages/SignInPage';
-import DevelopersPage from '@/pages/DevelopersPage';
-import ProjectsPage from '@/pages/ProjectsPage';
 import DeveloperDetailPage from '@/pages/DeveloperDetailPage';
 import GerritDetailPage from '@/pages/GerritDetailPage';
 import JiraAnalysisPage from '@/pages/JiraAnalysisPage';
 
-const App: React.FC = () => {
+const App = () => {
   return (
     <MainLayout>
       <Routes>
         <Route path="/" element={<Navigate to="/gerrit" />} />
         <Route path="/gerrit" element={<GerritDashboardPage />} />
         <Route path="/signin" element={<SignInPage />} />
-        <Route path="/gerrit/developers" element={<DevelopersPage />} />
-        <Route path="/gerrit/developers/:username" element={<DeveloperDetailPage />} />
-        <Route path="/gerrit/projects" element={<ProjectsPage />} />
-        <Route
-            path="/gerrit/projects/:project"
-            element={<GerritDetailPage />}
-          />
-
-          <Route
-            path="/gerrit/teams/:team"
-            element={<GerritDetailPage />}
-          />
+        <Route path="/gerrit/developers/:username" element={<DeveloperDetailPage />}/>
+        <Route path="/gerrit/projects/:project" element={<GerritDetailPage />}/>
+        <Route path="/gerrit/teams/:team"element={<GerritDetailPage />}/>
         <Route path="/jira" element={<JiraAnalysisPage />} />
-    
       </Routes>
     </MainLayout>
   );

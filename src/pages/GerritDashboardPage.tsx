@@ -44,6 +44,16 @@ import ErrorPanel from '@/components/ui/ErrorPanel';
 import MetricCard from '@/components/ui/MetricCard';
 import SectionCard from '@/components/ui/SectionCard';
 
+const toStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter(
+    (item): item is string => typeof item === 'string',
+  );
+};
+
 const GerritDashboardPage: React.FC = () => {
   const queryClient = useQueryClient();
 
@@ -70,15 +80,13 @@ const GerritDashboardPage: React.FC = () => {
   const [developerSearch, setDeveloperSearch] = useState('');
   const [projectSearch, setProjectSearch] = useState('');
   const [teamSearch, setTeamSearch] = useState('');
-
-  const [projectFilter, setProjectFilter] = useState('');
-
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
 
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
 
   const [teamName, setTeamName] = useState('');
   const [teamMembers, setTeamMembers] = useState<string[]>([]);
+  const [teamProjects, setTeamProjects] = useState<string[]>([]);
 
   const developers = developersQuery.data?.developers ?? [];
   const projects = projectsQuery.data?.projects ?? [];
@@ -114,15 +122,8 @@ const GerritDashboardPage: React.FC = () => {
           .includes(teamSearch.toLowerCase()),
       );
     }
-
-    if (projectFilter) {
-      result = result.filter((team) =>
-        team.projects?.includes(projectFilter),
-      );
-    }
-
     return result;
-  }, [teams, teamSearch, projectFilter]);
+  }, [teams, teamSearch]);
 
   const createMutation = useMutation({
     mutationFn: createTeam,
@@ -141,14 +142,20 @@ const GerritDashboardPage: React.FC = () => {
       teamId,
       name,
       members,
+      projects,
+      default_teams,
     }: {
       teamId: number;
       name: string;
       members: string[];
+      projects: string[];
+      default_teams?: string[];
     }) =>
       updateTeam(teamId, {
         name,
         members,
+        projects,
+        default_teams,
       }),
 
     onSuccess: () => {
@@ -194,13 +201,15 @@ const GerritDashboardPage: React.FC = () => {
     setEditingTeam(null);
     setTeamName('');
     setTeamMembers([]);
+    setTeamProjects([]);
     setTeamDialogOpen(true);
   };
 
   const openEditTeam = (team: Team) => {
     setEditingTeam(team);
     setTeamName(team.name);
-    setTeamMembers([...team.members]);
+    setTeamMembers(toStringArray(team.members));
+    setTeamProjects(toStringArray(team.projects));
     setTeamDialogOpen(true);
   };
 
@@ -209,6 +218,7 @@ const GerritDashboardPage: React.FC = () => {
     setEditingTeam(null);
     setTeamName('');
     setTeamMembers([]);
+    setTeamProjects([]);
   };
 
   const handleSaveTeam = () => {
@@ -221,6 +231,7 @@ const GerritDashboardPage: React.FC = () => {
         teamId: editingTeam.id,
         name: teamName.trim(),
         members: teamMembers,
+        projects: teamProjects,
       });
 
       return;
@@ -229,6 +240,7 @@ const GerritDashboardPage: React.FC = () => {
     createMutation.mutate({
       name: teamName.trim(),
       members: teamMembers,
+      projects: teamProjects,
     });
   };
 
@@ -452,38 +464,6 @@ const GerritDashboardPage: React.FC = () => {
                     setTeamSearch(event.target.value)
                   }
                 />
-                {/*
-                <FormControl
-                  size="small"
-                  sx={{ minWidth: 240 }}
-                >
-                  <InputLabel>
-                    Filter by project
-                  </InputLabel>
-
-                  <Select
-                    value={projectFilter}
-                    label="Filter by project"
-                    onChange={(event) =>
-                      setProjectFilter(event.target.value)
-                    }
-                  >
-                    <MenuItem value="">
-                      All projects
-                    </MenuItem>
-
-                    {projects.map((project) => (
-                      <MenuItem
-                        key={project}
-                        value={project}
-                      >
-                        {project}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                */}
-
                 <Button
                   variant="contained"
                   onClick={openCreateTeam}
@@ -628,6 +608,31 @@ const GerritDashboardPage: React.FC = () => {
                 {...params}
                 label="Members"
                 placeholder={teamMembers.length ? '' : 'Search developers...'}
+              />
+            )}
+          />
+                    <Autocomplete
+            multiple
+            fullWidth
+            options={projects}
+            value={teamProjects}
+            onChange={(event, newValue) => setTeamProjects(newValue)}
+            filterSelectedOptions
+            renderTags={(value, getTagProps) =>
+              value.map((project, index) => (
+                <Chip
+                  label={project}
+                  size="small"
+                  {...getTagProps({ index })}
+                  key={project}
+                />
+              ))
+            }
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Projects"
+                placeholder={teamProjects.length ? '' : 'Search projects...'}
               />
             )}
           />

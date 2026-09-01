@@ -301,11 +301,12 @@ export const normalizeLabelStats = (
       };
 
       const values = entry.values ?? {};
+      const normalizedValues = Object.values(values) as Array<number | VoteStats>;
 
       const stats: LabelStats = {
         total:
           entry.total ??
-          Object.values(values).reduce(
+          normalizedValues.reduce<number>(
             (sum, vote) => sum + toVoteCount(vote),
             0,
           ),

@@ -4,6 +4,8 @@ export interface Team {
   id: number;
   name: string;
   members: string[];
+  projects: string[];
+  default_teams?: string[];
 }
 
 export interface TeamPerformanceMetrics {

@@ -19,6 +19,7 @@ import ErrorPanel from '@/components/ui/ErrorPanel';
 import SectionCard from '@/components/ui/SectionCard';
 import FilterBar from '@/components/ui/Filters/FilterBar';
 import ChartCard from '@/components/ui/ChartCard';
+import { GapDistributionChart } from '@/components/ui/GapDistributionChart';
 import RelationshipGraph from '@/components/ui/RelationshipGraph';
 import { mergeLabelStats } from '@/components/ui/RelationshipTable';
 import RelationshipTable from '@/components/ui/RelationshipTable';
@@ -40,6 +41,7 @@ import {
   metricColumns,
 } from '@/metrics/types';
 import { projectMetricDefs, projectMetricDetailDefs } from '@/metrics/projectMetrics';
+import { GapTimeStats, LeadTimeStats } from '@/types/metrics';
 import { Period } from '@/types/periods';
 
 const statusPalette: Record<string, string> = {
@@ -48,6 +50,90 @@ const statusPalette: Record<string, string> = {
   OPEN: 'warning.main',
   DRAFT: 'info.main',
   NEEDS_REVIEW: 'secondary.main',
+};
+
+const aggregateDistributionBuckets = <T extends { distribution: Array<{ min: number; max: number | null; count: number; density: number | null }> }>(
+  statsList: T[],
+): T['distribution'] => {
+  const bucketMap = new Map<
+    string,
+    { min: number; max: number | null; count: number; density: number | null }
+  >();
+
+  statsList.forEach((stats) => {
+    stats.distribution.forEach((bucket) => {
+      const key = `${bucket.min}:${bucket.max ?? 'inf'}`;
+      const current = bucketMap.get(key);
+
+      if (current) {
+        current.count += bucket.count;
+        current.density =
+          bucket.max === null
+            ? null
+            : current.count / Math.max(bucket.max - bucket.min, 1);
+        return;
+      }
+
+      bucketMap.set(key, {
+        min: bucket.min,
+        max: bucket.max,
+        count: bucket.count,
+        density:
+          bucket.max === null
+            ? null
+            : bucket.count / Math.max(bucket.max - bucket.min, 1),
+      });
+    });
+  });
+
+  return Array.from(bucketMap.values()).sort(
+    (left, right) => left.min - right.min,
+  ) as T['distribution'];
+};
+
+const aggregateDeveloperTimeStats = <T extends LeadTimeStats | GapTimeStats>(
+  developerMetrics: Record<string, { [key: string]: T | null }>,
+  key: 'lead_time' | 'patchset_gap_time',
+  selectedDevelopers?: string[],
+): T | null => {
+  const names =
+    selectedDevelopers && selectedDevelopers.length > 0
+      ? selectedDevelopers
+      : Object.keys(developerMetrics);
+
+  const statsList = names
+    .map((developer) => developerMetrics[developer]?.[key] as T | null | undefined)
+    .filter(
+      (value): value is T =>
+        Boolean(value) &&
+        Array.isArray(value.distribution) &&
+        value.distribution.length > 0,
+    );
+
+  if (statsList.length === 0) {
+    return null;
+  }
+
+  const min = statsList.reduce((best, current) =>
+    current.min.duration < best.min.duration ? current : best,
+  );
+
+  const max = statsList.reduce((best, current) =>
+    current.max.duration > best.max.duration ? current : best,
+  );
+
+  const mean =
+    statsList.reduce((sum, current) => sum + current.mean, 0) /
+    statsList.length;
+
+  const aggregated = {
+    min: min.min,
+    mean,
+    max: max.max,
+    distribution: aggregateDistributionBuckets(statsList),
+  } as T;
+
+  return aggregated;
 };
 
 const toCount = (vote: number | VoteStats | undefined): number =>
@@ -324,6 +410,70 @@ const ProjectDetailPage: React.FC = () => {
     () => data?.developer_metrics ?? {},
     [data],
   );
+
+  const aggregatedLeadTime = useMemo(
+    () =>
+      aggregateDeveloperTimeStats(
+        developerMetrics,
+        'lead_time',
+        selectedDevelopers.length > 0 ? selectedDevelopers : undefined,
+      ),
+    [developerMetrics, selectedDevelopers],
+  );
+
+  const aggregatedPatchsetGapTime = useMemo(
+    () =>
+      aggregateDeveloperTimeStats(
+        developerMetrics,
+        'patchset_gap_time',
+        selectedDevelopers.length > 0 ? selectedDevelopers : undefined,
+      ),
+    [developerMetrics, selectedDevelopers],
+  );
+
+  const selectedDeveloperTimeSeries = useMemo(() => {
+    const names = selectedDevelopers.length > 0 ? selectedDevelopers : Object.keys(developerMetrics);
+
+    return names
+      .map((name, index) => ({
+        key: `developer-${name}`,
+        name,
+        color: [
+          '#4fc3f7',
+          '#81c784',
+          '#ffb74d',
+          '#ba68c8',
+          '#f06292',
+          '#a1887f',
+          '#ffd54f',
+          '#64b5f6',
+        ][index % 8],
+        stats: developerMetrics[name]?.lead_time ?? null,
+      }))
+      .filter((entry) => entry.stats && entry.stats.distribution.length > 0);
+  }, [developerMetrics, selectedDevelopers]);
+
+  const selectedPatchsetGapSeries = useMemo(() => {
+    const names = selectedDevelopers.length > 0 ? selectedDevelopers : Object.keys(developerMetrics);
+
+    return names
+      .map((name, index) => ({
+        key: `patchset-${name}`,
+        name,
+        color: [
+          '#4fc3f7',
+          '#81c784',
+          '#ffb74d',
+          '#ba68c8',
+          '#f06292',
+          '#a1887f',
+          '#ffd54f',
+          '#64b5f6',
+        ][index % 8],
+        stats: developerMetrics[name]?.patchset_gap_time ?? null,
+      }))
+      .filter((entry) => entry.stats && entry.stats.distribution.length > 0);
+  }, [developerMetrics, selectedDevelopers]);
 
   const repositoryOptions = useMemo(() => {
     const repoSet = new Set<string>();
@@ -977,32 +1127,24 @@ metricsWithPeople.forEach(
             />
           </SectionCard>
         )}
-      <SectionCard title="Time related metrics disturbution">
-            <Grid container spacing={2}>
-                <Grid
-                    item
-                    xs={12}
-                    sm={6}
-                  >
-                <GapDistributionChart
-                  data={metrics.patchset_gap_time}
-                  title="Patchset gap distribution"
-                />
-              </Grid>
-              <Grid
-                    item
-                    xs={12}
-                    sm={6}
-                  >
-                <GapDistributionChart
-                  data={metrics.lead_time}
-                  title="Lead times distribution"
-                />
-              </Grid>
-            </Grid>
-
-          
-        </SectionCard>
+      <SectionCard title="Time related metrics distribution">
+        <Grid container spacing={2}>
+          <Grid item xs={12} sm={6}>
+            <GapDistributionChart
+              data={aggregatedPatchsetGapTime}
+              series={selectedPatchsetGapSeries}
+              title="Patchset gap distribution"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <GapDistributionChart
+              data={aggregatedLeadTime}
+              series={selectedDeveloperTimeSeries}
+              title="Lead time distribution"
+            />
+          </Grid>
+        </Grid>
+      </SectionCard>
       <Grid container spacing={2}>
         <Grid
           item

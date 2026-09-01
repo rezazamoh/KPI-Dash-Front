@@ -306,8 +306,7 @@ const DeveloperDetailPage: React.FC = () => {
 
   const data = selectedPeriod?.metrics ?? null;
 
-  const metrics =
-    data?.overall_performance ?? null;
+  const metrics = data?.overall_performance ?? null;
 
   const topicOptions =
     topicsQuery.data ??
