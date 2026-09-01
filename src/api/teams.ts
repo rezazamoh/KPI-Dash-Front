@@ -53,7 +53,7 @@ export const deleteTeam = async (teamId: number): Promise<void> => {
 
 
 export const fetchTeamPerformance = async (
-  teamId: number,
+  teamId: string,
   params: {
     username?: string[];
     project?: string[];

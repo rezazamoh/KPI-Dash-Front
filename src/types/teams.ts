@@ -8,9 +8,16 @@ export interface Team {
   default_teams?: string[];
 }
 
+export interface TeamPerformanceTeam {
+  id: number;
+  name: string;
+  members: string[];
+  projects: string[] | null;
+}
+
 export interface TeamPerformanceMetrics {
   filters: {
-    team: string;
+    team: TeamPerformanceTeam;
     developers: string[] | null;
     projects: string[] | null;
     topics: string[] | null;

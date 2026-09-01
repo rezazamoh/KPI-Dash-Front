@@ -9,7 +9,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink, useLocation, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchProject } from '@/api/projects';
@@ -105,9 +105,7 @@ const aggregateDeveloperTimeStats = <T extends LeadTimeStats | GapTimeStats>(
     .map((developer) => developerMetrics[developer]?.[key] as T | null | undefined)
     .filter(
       (value): value is T =>
-        Boolean(value) &&
-        Array.isArray(value.distribution) &&
-        value.distribution.length > 0,
+        Boolean(value?.distribution?.length),
     );
 
   if (statsList.length === 0) {
@@ -237,6 +235,8 @@ const ProjectDetailPage: React.FC = () => {
   const [selectedRepositories, setSelectedRepositories] =
     useState<string[]>(reposFromQuery);
 
+  const initializedTeamRepositories = useRef(false);
+
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [periods, setPeriods] = useState<Period[]>([]);
   const [draftPeriods, setDraftPeriods] = useState<Period[]>([]);
@@ -339,6 +339,27 @@ const ProjectDetailPage: React.FC = () => {
     null;
 
   const data = selectedPeriod?.metrics ?? null;
+
+  useEffect(() => {
+    initializedTeamRepositories.current = false;
+  }, [isTeam, name]);
+
+  useEffect(() => {
+    const teamProjects = isTeam ? data?.team?.projects : null;
+
+    if (
+      !isTeam ||
+      reposFromQuery.length > 0 ||
+      initializedTeamRepositories.current ||
+      !teamProjects?.length
+    ) {
+      return;
+    }
+
+    initializedTeamRepositories.current = true;
+    setSelectedRepositories(teamProjects);
+    setDraftRepositories(teamProjects);
+  }, [data, isTeam, reposFromQuery]);
 
   const developerOptions = data?.developers ?? [];
   const topicOptions = data?.topics ?? [];
