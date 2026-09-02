@@ -18,9 +18,10 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({ topics, value, onChange, 
     onChange={(_, nextValue) => onChange(nextValue)}
     onOpen={() => onOpenChange?.(true)}
     onClose={() => onOpenChange?.(false)}
+    renderTags={() => `${value.length} selected`}
     renderInput={(params) => <TextField {...params} label="Topics" size="small" />}
     disabled={disabled}
-    sx={{ minWidth: 240, maxWidth: 420 }}
+    sx={{ minWidth: 180, maxWidth: 220 }}
   />
 );
 

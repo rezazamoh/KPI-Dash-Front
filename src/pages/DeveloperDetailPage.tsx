@@ -117,6 +117,8 @@ const buildPeopleSummary = (
   };
 };
 
+const DEFAULT_STATUS_FILTER = ['NEW', 'ABANDONED', 'MERGED'];
+
 const DeveloperDetailPage: React.FC = () => {
   const { username } = useParams<{
     username: string;
@@ -146,6 +148,8 @@ const DeveloperDetailPage: React.FC = () => {
     setSelectedTopics,
   ] = useState<string[]>([]);
 
+  const [selectedStatus, setSelectedStatus] = useState<string[]>(DEFAULT_STATUS_FILTER);
+
   const [periods, setPeriods] = useState<
     Period[]
   >([]);
@@ -172,6 +176,8 @@ const DeveloperDetailPage: React.FC = () => {
     draftTopics,
     setDraftTopics,
   ] = useState<string[]>([]);
+
+  const [draftStatus, setDraftStatus] = useState<string[]>(DEFAULT_STATUS_FILTER);
 
   const [
     draftLive,
@@ -204,6 +210,7 @@ const DeveloperDetailPage: React.FC = () => {
     );
 
     setDraftTopics(selectedTopics);
+    setDraftStatus(selectedStatus);
 
     setDraftPeriods(periods);
 
@@ -211,6 +218,7 @@ const DeveloperDetailPage: React.FC = () => {
   }, [
     selectedRepositories,
     selectedTopics,
+    selectedStatus,
     periods,
     live,
   ]);
@@ -231,6 +239,7 @@ const DeveloperDetailPage: React.FC = () => {
       developerName,
       selectedRepositories,
       selectedTopics,
+      selectedStatus,
       periods,
       live,
     ],
@@ -245,6 +254,7 @@ const DeveloperDetailPage: React.FC = () => {
         {
           repo: selectedRepositories,
           topic: selectedTopics,
+          status: selectedStatus.length > 0 ? selectedStatus : undefined,
           periods: normalizePeriods(
             periods,
           ),
@@ -601,6 +611,10 @@ const collaborationRows = useMemo(() => {
       ? `${selectedTopics.length} selected`
       : 'All topics';
 
+    const activeStatus = selectedStatus.length && selectedStatus.length < 3
+      ? `${selectedStatus.length} selected`
+      : 'All statuses';
+
     const activePeriods = periods.length
       ? periods.map(formatPeriodLabel).join(' | ')
       : 'Any time';
@@ -608,9 +622,10 @@ const collaborationRows = useMemo(() => {
     return {
       activeRepositories,
       activeTopics,
+      activeStatus,
       activePeriods,
     };
-  }, [selectedRepositories, selectedTopics, periods]);
+  }, [selectedRepositories, selectedTopics, selectedStatus, periods]);
 
   if (detailQuery.isLoading) {
     return <LoadingSpinner />;
@@ -666,6 +681,10 @@ const collaborationRows = useMemo(() => {
       ...draftTopics,
     ]);
 
+    setSelectedStatus([
+      ...draftStatus,
+    ]);
+
     setPeriods([
       ...draftPeriods,
     ]);
@@ -681,11 +700,13 @@ const collaborationRows = useMemo(() => {
 
     setDraftRepositories([]);
     setDraftTopics([]);
+    setDraftStatus([...DEFAULT_STATUS_FILTER]);
     setDraftPeriods([]);
     setDraftLive(defaultLive);
 
     setSelectedRepositories([]);
     setSelectedTopics([]);
+    setSelectedStatus([...DEFAULT_STATUS_FILTER]);
     setPeriods([]);
     setLive(defaultLive);
 
@@ -713,6 +734,7 @@ const collaborationRows = useMemo(() => {
         >
           <Chip label={filterSummary.activeRepositories} />
           <Chip label={filterSummary.activeTopics} />
+          <Chip label={filterSummary.activeStatus} />
           <Chip label={filterSummary.activePeriods} />
         </Stack>
 
@@ -726,6 +748,7 @@ const collaborationRows = useMemo(() => {
 
           selectedRepositories={selectedRepositories}
           selectedTopics={selectedTopics}
+          selectedStatus={selectedStatus}
 
           periods={periods}
           draftPeriods={draftPeriods}
@@ -736,6 +759,7 @@ const collaborationRows = useMemo(() => {
 
           draftRepositories={draftRepositories}
           draftTopics={draftTopics}
+          draftStatus={draftStatus}
           draftLive={draftLive}
 
           onDeveloperChange={() => {}}
@@ -747,6 +771,8 @@ const collaborationRows = useMemo(() => {
 
           onTopicChange={setDraftTopics}
 
+          onStatusChange={setDraftStatus}
+
           onPeriodsChange={(value) => {
             setDraftPeriods(value);
           }}
@@ -756,6 +782,7 @@ const collaborationRows = useMemo(() => {
           onApplyFilters={() => {
             setSelectedRepositories([...draftRepositories]);
             setSelectedTopics([...draftTopics]);
+            setSelectedStatus([...draftStatus]);
             setPeriods([...draftPeriods]);
             setLive(draftLive);
             setSelectedPeriodIndex(0);
@@ -768,11 +795,13 @@ const collaborationRows = useMemo(() => {
 
             setDraftRepositories([]);
             setDraftTopics([]);
+            setDraftStatus([...DEFAULT_STATUS_FILTER]);
             setDraftPeriods([]);
             setDraftLive(defaultLive);
 
             setSelectedRepositories([]);
             setSelectedTopics([]);
+            setSelectedStatus([...DEFAULT_STATUS_FILTER]);
             setPeriods([]);
             setLive(defaultLive);
 
@@ -1233,11 +1262,11 @@ const collaborationRows = useMemo(() => {
                               {metrics.build_failure_rate.total_changes_with_builds}
                             </Typography>
                             <Typography variant="body2">
-                              Total outcomes:{' '}
+                              Total labels:{' '}
                               {metrics.build_failure_rate.total_outcomes}
                             </Typography>
                             <Typography variant="body2">
-                              Failed outcomes:{' '}
+                              Total Failed labels:{' '}
                               {metrics.build_failure_rate.failed_outcomes}
                             </Typography>
                             <Typography variant="body2">

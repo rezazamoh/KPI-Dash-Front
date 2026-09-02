@@ -1,6 +1,9 @@
 import {
   Button,
   ButtonGroup,
+  Dialog,
+  DialogContent,
+  DialogTitle,
   IconButton,
   Menu,
   MenuItem,
@@ -80,6 +83,7 @@ const PeriodSelector: React.FC<PeriodSelectorProps> = ({
   const [quickAmount, setQuickAmount] = useState<number>(1);
   const [quickUnit, setQuickUnit] = useState<'days' | 'weeks' | 'months'>('months');
   const [quickMenuAnchor, setQuickMenuAnchor] = useState<null | HTMLElement>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const updatePeriod = (
     index: number,
@@ -154,8 +158,21 @@ const PeriodSelector: React.FC<PeriodSelectorProps> = ({
   };
 
   return (
-    <Stack spacing={1}>
-      {orderedPeriods.map((period, index) => (
+    <>
+      <Button
+        size="small"
+        variant="outlined"
+        startIcon={<CalendarMonthIcon fontSize="small" />}
+        onClick={() => setDialogOpen(true)}
+      >
+        Periods ({periods.length})
+      </Button>
+
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Edit periods ({periods.length})</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1} sx={{ pt: 1 }}>
+            {orderedPeriods.map((period, index) => (
         <Stack
           key={`${period.start ?? 'empty'}-${period.end ?? 'empty'}-${index}`}
           direction="row"
@@ -177,8 +194,8 @@ const PeriodSelector: React.FC<PeriodSelectorProps> = ({
           >
             <DeleteOutlineIcon fontSize="small" />
           </IconButton>
-        </Stack>
-      ))}
+            </Stack>
+            ))}
 
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
@@ -251,7 +268,10 @@ const PeriodSelector: React.FC<PeriodSelectorProps> = ({
           Manual
         </Button>
       </Stack>
-    </Stack>
+          </Stack>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 

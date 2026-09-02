@@ -1,4 +1,5 @@
 import {
+  Autocomplete,
   Box,
   Chip,
   Button,
@@ -7,6 +8,7 @@ import {
   Grid,
   Link,
   Stack,
+  TextField,
   Typography,
 } from '@mui/material';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -52,12 +54,14 @@ const statusPalette: Record<string, string> = {
   NEEDS_REVIEW: 'secondary.main',
 };
 
-const aggregateDistributionBuckets = <T extends { distribution: Array<{ min: number; max: number | null; count: number; density: number | null }> }>(
+const DEFAULT_STATUS_FILTER = ['NEW', 'ABANDONED', 'MERGED'];
+
+const aggregateDistributionBuckets = <T extends { distribution: Array<{ min: number; max: number | null; count: number; density: number | null; change_numbers?: number[]; change_patchsets?: Array<{ change_number: number; patchset_number: number }> }> }>(
   statsList: T[],
 ): T['distribution'] => {
   const bucketMap = new Map<
     string,
-    { min: number; max: number | null; count: number; density: number | null }
+    { min: number; max: number | null; count: number; density: number | null; change_numbers: number[]; change_patchsets: Array<{ change_number: number; patchset_number: number }> }
   >();
 
   statsList.forEach((stats) => {
@@ -67,6 +71,23 @@ const aggregateDistributionBuckets = <T extends { distribution: Array<{ min: num
 
       if (current) {
         current.count += bucket.count;
+        current.change_numbers = Array.from(
+          new Set([
+            ...current.change_numbers,
+            ...(bucket.change_numbers ?? []),
+          ]),
+        );
+        current.change_patchsets = Array.from(
+          new Map(
+            [
+              ...current.change_patchsets,
+              ...(bucket.change_patchsets ?? []),
+            ].map((patchset) => [
+              `${patchset.change_number}:${patchset.patchset_number}`,
+              patchset,
+            ]),
+          ).values(),
+        );
         current.density =
           bucket.max === null
             ? null
@@ -82,6 +103,8 @@ const aggregateDistributionBuckets = <T extends { distribution: Array<{ min: num
           bucket.max === null
             ? null
             : bucket.count / Math.max(bucket.max - bucket.min, 1),
+        change_numbers: [...(bucket.change_numbers ?? [])],
+        change_patchsets: [...(bucket.change_patchsets ?? [])],
       });
     });
   });
@@ -238,6 +261,7 @@ const ProjectDetailPage: React.FC = () => {
   const initializedTeamRepositories = useRef(false);
 
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+  const [selectedStatus, setSelectedStatus] = useState<string[]>(DEFAULT_STATUS_FILTER);
   const [periods, setPeriods] = useState<Period[]>([]);
   const [draftPeriods, setDraftPeriods] = useState<Period[]>([]);
   const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0);
@@ -250,6 +274,7 @@ const ProjectDetailPage: React.FC = () => {
     useState<string[]>(reposFromQuery);
 
   const [draftTopics, setDraftTopics] = useState<string[]>([]);
+  const [draftStatus, setDraftStatus] = useState<string[]>(DEFAULT_STATUS_FILTER);
   const [draftLive, setDraftLive] = useState(getDefaultLiveValue);
   const [topicMenuOpen, setTopicMenuOpen] = useState(false);
   const [showRawJson, setShowRawJson] = useState(false);
@@ -258,12 +283,14 @@ const ProjectDetailPage: React.FC = () => {
     setDraftDevelopers(selectedDevelopers);
     setDraftRepositories(selectedRepositories);
     setDraftTopics(selectedTopics);
+    setDraftStatus(selectedStatus);
     setDraftPeriods(periods);
     setDraftLive(live);
   }, [
     selectedDevelopers,
     selectedRepositories,
     selectedTopics,
+    selectedStatus,
     periods,
     live,
   ]);
@@ -285,6 +312,7 @@ const ProjectDetailPage: React.FC = () => {
       selectedDevelopers,
       selectedRepositories,
       selectedTopics,
+      selectedStatus,
       periods,
       live,
     ],
@@ -305,6 +333,10 @@ const ProjectDetailPage: React.FC = () => {
 
       if (selectedTopics.length > 0) {
         params.topic = selectedTopics;
+      }
+
+      if (selectedStatus.length > 0) {
+        params.status = selectedStatus;
       }
 
       if (periods.length > 0) {
@@ -339,6 +371,10 @@ const ProjectDetailPage: React.FC = () => {
     null;
 
   const data = selectedPeriod?.metrics ?? null;
+
+  const displayName = isTeam
+    ? data?.team?.name ?? data?.filters?.team?.name ?? name
+    : name;
 
   useEffect(() => {
     initializedTeamRepositories.current = false;
@@ -432,14 +468,30 @@ const ProjectDetailPage: React.FC = () => {
     [data],
   );
 
+  const timeDistributionDeveloperOptions = useMemo(
+    () => Object.keys(developerMetrics).sort(),
+    [developerMetrics],
+  );
+
+  const [timeDistributionDevelopers, setTimeDistributionDevelopers] =
+    useState<string[]>([]);
+
+  const activeTimeDistributionDevelopers = useMemo(
+    () =>
+      timeDistributionDevelopers.length > 0
+        ? timeDistributionDevelopers
+        : timeDistributionDeveloperOptions,
+    [timeDistributionDevelopers, timeDistributionDeveloperOptions],
+  );
+
   const aggregatedLeadTime = useMemo(
     () =>
       aggregateDeveloperTimeStats(
         developerMetrics,
         'lead_time',
-        selectedDevelopers.length > 0 ? selectedDevelopers : undefined,
+        activeTimeDistributionDevelopers,
       ),
-    [developerMetrics, selectedDevelopers],
+    [developerMetrics, activeTimeDistributionDevelopers],
   );
 
   const aggregatedPatchsetGapTime = useMemo(
@@ -447,13 +499,13 @@ const ProjectDetailPage: React.FC = () => {
       aggregateDeveloperTimeStats(
         developerMetrics,
         'patchset_gap_time',
-        selectedDevelopers.length > 0 ? selectedDevelopers : undefined,
+        activeTimeDistributionDevelopers,
       ),
-    [developerMetrics, selectedDevelopers],
+    [developerMetrics, activeTimeDistributionDevelopers],
   );
 
   const selectedDeveloperTimeSeries = useMemo(() => {
-    const names = selectedDevelopers.length > 0 ? selectedDevelopers : Object.keys(developerMetrics);
+    const names = activeTimeDistributionDevelopers;
 
     return names
       .map((name, index) => ({
@@ -472,10 +524,10 @@ const ProjectDetailPage: React.FC = () => {
         stats: developerMetrics[name]?.lead_time ?? null,
       }))
       .filter((entry) => entry.stats && entry.stats.distribution.length > 0);
-  }, [developerMetrics, selectedDevelopers]);
+  }, [developerMetrics, activeTimeDistributionDevelopers]);
 
   const selectedPatchsetGapSeries = useMemo(() => {
-    const names = selectedDevelopers.length > 0 ? selectedDevelopers : Object.keys(developerMetrics);
+    const names = activeTimeDistributionDevelopers;
 
     return names
       .map((name, index) => ({
@@ -494,7 +546,7 @@ const ProjectDetailPage: React.FC = () => {
         stats: developerMetrics[name]?.patchset_gap_time ?? null,
       }))
       .filter((entry) => entry.stats && entry.stats.distribution.length > 0);
-  }, [developerMetrics, selectedDevelopers]);
+  }, [developerMetrics, activeTimeDistributionDevelopers]);
 
   const repositoryOptions = useMemo(() => {
     const repoSet = new Set<string>();
@@ -805,6 +857,11 @@ metricsWithPeople.forEach(
         ? `${selectedTopics.length} selected`
         : 'All topics';
 
+    const activeStatus =
+      selectedStatus.length === DEFAULT_STATUS_FILTER.length
+        ? 'All statuses'
+        : `${selectedStatus.length} selected`;
+
     const activePeriods =
       periods.length
         ? `${periods.length} period${
@@ -816,12 +873,14 @@ metricsWithPeople.forEach(
       activeDevelopers,
       activeRepositories,
       activeTopics,
+      activeStatus,
       activePeriods,
     };
   }, [
     selectedDevelopers,
     selectedRepositories,
     selectedTopics,
+    selectedStatus,
     periods,
   ]);
 
@@ -854,6 +913,10 @@ metricsWithPeople.forEach(
       ...draftTopics,
     ]);
 
+    setSelectedStatus([
+      ...draftStatus,
+    ]);
+
     setPeriods([
       ...draftPeriods,
     ]);
@@ -866,12 +929,14 @@ metricsWithPeople.forEach(
     setDraftDevelopers([]);
     setDraftRepositories([]);
     setDraftTopics([]);
+    setDraftStatus([...DEFAULT_STATUS_FILTER]);
     setDraftPeriods([]);
     setDraftLive(getDefaultLiveValue());
 
     setSelectedDevelopers([]);
     setSelectedRepositories([]);
     setSelectedTopics([]);
+    setSelectedStatus([...DEFAULT_STATUS_FILTER]);
     setPeriods([]);
     setLive(getDefaultLiveValue());
 
@@ -883,7 +948,7 @@ metricsWithPeople.forEach(
       <Stack spacing={3}>
         <Stack spacing={1}>
           <Typography variant="h4">
-            {isTeam ? `Team: ${name}` : name}
+            {isTeam ? `Team: ${displayName}` : displayName}
           </Typography>
 
           <Typography color="text.secondary">
@@ -922,6 +987,12 @@ metricsWithPeople.forEach(
 
           <Chip
             label={
+              filterSummary.activeStatus
+            }
+          />
+
+          <Chip
+            label={
               filterSummary.activePeriods
             }
           />
@@ -935,6 +1006,7 @@ metricsWithPeople.forEach(
           selectedDeveloper={selectedDevelopers}
           selectedRepositories={selectedRepositories}
           selectedTopics={selectedTopics}
+          selectedStatus={selectedStatus}
 
           periods={periods}
           draftPeriods={draftPeriods}
@@ -944,6 +1016,7 @@ metricsWithPeople.forEach(
           draftDeveloper={draftDevelopers}
           draftRepositories={draftRepositories}
           draftTopics={draftTopics}
+          draftStatus={draftStatus}
           draftLive={draftLive}
 
           showRepositorySelector={isTeam}
@@ -975,6 +1048,8 @@ metricsWithPeople.forEach(
           }}
 
           onTopicChange={setDraftTopics}
+
+          onStatusChange={setDraftStatus}
 
           onPeriodsChange={setDraftPeriods}
 
@@ -1149,6 +1224,34 @@ metricsWithPeople.forEach(
           </SectionCard>
         )}
       <SectionCard title="Time related metrics distribution">
+        <Stack spacing={2} sx={{ mb: 2 }}>
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            spacing={2}
+            alignItems={{ xs: 'stretch', sm: 'center' }}
+            justifyContent="space-between"
+          >
+            <Typography variant="subtitle2" color="text.secondary">
+              Aggregate developers
+            </Typography>
+
+            <Autocomplete
+              multiple
+              disableCloseOnSelect
+              options={timeDistributionDeveloperOptions}
+              value={activeTimeDistributionDevelopers}
+              onChange={(_, nextValue) => {
+                setTimeDistributionDevelopers(nextValue ?? []);
+              }}
+              renderTags={() => `${activeTimeDistributionDevelopers.length} selected`}
+              renderInput={(params) => (
+                <TextField {...params} label="Developers" size="small" />
+              )}
+              sx={{ minWidth: 180, maxWidth: 220, width: '100%' }}
+            />
+          </Stack>
+        </Stack>
+
         <Grid container spacing={2}>
           <Grid item xs={12} sm={6}>
             <GapDistributionChart

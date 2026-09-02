@@ -58,6 +58,7 @@ export const fetchTeamPerformance = async (
     username?: string[];
     project?: string[];
     topic?: string[];
+    status?: string[];
     periods?: Period[];
     live?: boolean;
   } = {},
@@ -66,6 +67,7 @@ export const fetchTeamPerformance = async (
     username: params.username,
     project: params.project,
     topic: params.topic,
+    status: params.status,
     periods: params.periods,
     live: params.live,
   });

@@ -20,6 +20,7 @@ export const fetchDeveloper = async (
   params: {
     repo?: string[];
     topic?: string[];
+    status?: string[];
     periods?: Period[];
     live?: boolean;
     group_by_repo?: boolean;
@@ -29,6 +30,7 @@ export const fetchDeveloper = async (
   const queryString = buildQueryString({
     repo: params.repo,
     topic: params.topic,
+    status: params.status,
     periods: params.periods,
     group_by_repo: params.group_by_repo ?? false,
     group_by_topic: params.group_by_topic ?? false,

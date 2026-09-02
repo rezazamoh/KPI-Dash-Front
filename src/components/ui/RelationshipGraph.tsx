@@ -9,12 +9,16 @@ import {
   ListItemText,
   Paper,
   Stack,
+  ToggleButton,
+  ToggleButtonGroup,
   Tooltip,
   Typography,
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { GraphEdge, GraphNode } from '@/utils/relationshipGraph';
+
+type GraphInteractionMode = 'reviews' | 'comments' | 'combined';
 
 interface RelationshipGraphProps {
   nodes: GraphNode[];
@@ -23,6 +27,7 @@ interface RelationshipGraphProps {
   subtitle?: string;
   centerNodeId?: string;
   nodeLinkHref?: (node: GraphNode) => string;
+  interactionMode?: GraphInteractionMode;
 }
 
 interface GraphPoint {
@@ -156,8 +161,9 @@ const buildForceLayout = (
   return positions;
 };
 
-const formatInteractionBreakdown = (
+const getEdgeMetricValue = (
   edge: GraphEdge,
+  mode: GraphInteractionMode,
   sourceToTarget: boolean,
 ) => {
   const reviewCount = sourceToTarget
@@ -172,11 +178,91 @@ const formatInteractionBreakdown = (
     ? edge.sourceInteractions
     : edge.targetInteractions;
 
+  if (mode === 'reviews') {
+    return reviewCount;
+  }
+
+  if (mode === 'comments') {
+    return commentCount;
+  }
+
+  return total;
+};
+
+const getEdgeWeight = (
+  edge: GraphEdge,
+  mode: GraphInteractionMode,
+) => {
+  if (mode === 'reviews') {
+    return edge.reviewCount;
+  }
+
+  if (mode === 'comments') {
+    return edge.commentCount;
+  }
+
+  return edge.totalInteractions;
+};
+
+const formatInteractionBreakdown = (
+  edge: GraphEdge,
+  sourceToTarget: boolean,
+  mode: GraphInteractionMode,
+) => {
+  const reviewCount = sourceToTarget
+    ? edge.sourceReviewCount
+    : edge.targetReviewCount;
+
+  const commentCount = sourceToTarget
+    ? edge.sourceCommentCount
+    : edge.targetCommentCount;
+
+  const total = sourceToTarget
+    ? edge.sourceInteractions
+    : edge.targetInteractions;
+
+  const selectedValue =
+    mode === 'reviews'
+      ? reviewCount
+      : mode === 'comments'
+        ? commentCount
+        : total;
+
   return {
     reviewCount,
     commentCount,
     total,
+    selectedValue,
   };
+};
+
+const getNodeActivity = (
+  nodeId: string,
+  edges: GraphEdge[],
+  mode: GraphInteractionMode,
+) => {
+  return edges.reduce((total, edge) => {
+    if (edge.source === nodeId) {
+      return total + getEdgeMetricValue(edge, mode, true);
+    }
+
+    if (edge.target === nodeId) {
+      return total + getEdgeMetricValue(edge, mode, false);
+    }
+
+    return total;
+  }, 0);
+};
+
+const getActivityLabel = (mode: GraphInteractionMode) => {
+  switch (mode) {
+    case 'reviews':
+      return 'Review activity';
+    case 'comments':
+      return 'Comment activity';
+    default:
+      return 'Activity';
+  }
 };
 
 const RelationshipGraph: React.FC<
@@ -188,7 +274,11 @@ const RelationshipGraph: React.FC<
   subtitle,
   centerNodeId,
   nodeLinkHref,
+  interactionMode = 'combined',
 }) => {
+  const [activeInteractionMode, setActiveInteractionMode] =
+    useState<GraphInteractionMode>(interactionMode);
+
   const [
     selectedNodeId,
     setSelectedNodeId,
@@ -258,6 +348,10 @@ const RelationshipGraph: React.FC<
   };
 
   useEffect(() => {
+    setActiveInteractionMode(interactionMode);
+  }, [interactionMode]);
+
+  useEffect(() => {
     if (!nodes.length) {
       setVisibleNodeIds(new Set());
       setSelectedNodeId(null);
@@ -321,12 +415,16 @@ const RelationshipGraph: React.FC<
 
   const filteredEdges = useMemo(
     () =>
-      edges.filter(
-        (edge) =>
-          visibleNodeIds.has(edge.source) &&
-          visibleNodeIds.has(edge.target),
-      ),
-    [edges, visibleNodeIds],
+      edges
+        .filter(
+          (edge) =>
+            visibleNodeIds.has(edge.source) &&
+            visibleNodeIds.has(edge.target),
+        )
+        .filter(
+          (edge) => getEdgeWeight(edge, activeInteractionMode) > 0,
+        ),
+    [edges, activeInteractionMode, visibleNodeIds],
   );
 
   const visibleGraph = useMemo(() => {
@@ -460,7 +558,7 @@ const RelationshipGraph: React.FC<
     Math.max(
       1,
       ...visibleGraph.edges.map(
-        (edge) => edge.weight,
+        (edge) => getEdgeWeight(edge, activeInteractionMode),
       ),
     );
 
@@ -471,6 +569,16 @@ const RelationshipGraph: React.FC<
         (node) => node.activity,
       ),
     );
+
+  const nodeActivityByMode = useMemo(() => {
+    const activityMap = new Map<string, number>();
+
+    nodes.forEach((node) => {
+      activityMap.set(node.id, getNodeActivity(node.id, edges, activeInteractionMode));
+    });
+
+    return activityMap;
+  }, [activeInteractionMode, edges, nodes]);
 
   useEffect(() => {
     if (
@@ -669,20 +777,38 @@ const RelationshipGraph: React.FC<
       }}
     >
       <Stack spacing={2}>
-        <Box>
-          <Typography variant="subtitle1">
-            {title}
-          </Typography>
-
-          {subtitle ? (
-            <Typography
-              variant="body2"
-              color="text.secondary"
-            >
-              {subtitle}
+        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2} sx={{ flexWrap: 'wrap' }}>
+          <Box>
+            <Typography variant="subtitle1">
+              {title}
             </Typography>
-          ) : null}
-        </Box>
+
+            {subtitle ? (
+              <Typography
+                variant="body2"
+                color="text.secondary"
+              >
+                {subtitle}
+              </Typography>
+            ) : null}
+          </Box>
+
+          <ToggleButtonGroup
+            size="small"
+            exclusive
+            value={activeInteractionMode}
+            onChange={(_, next) => {
+              if (next) {
+                setActiveInteractionMode(next as GraphInteractionMode);
+              }
+            }}
+            color="primary"
+          >
+            <ToggleButton value="combined">Both</ToggleButton>
+            <ToggleButton value="reviews">Reviews</ToggleButton>
+            <ToggleButton value="comments">Comments</ToggleButton>
+          </ToggleButtonGroup>
+        </Stack>
 
         <Box
           sx={{
@@ -715,11 +841,23 @@ const RelationshipGraph: React.FC<
                 Toggle visibility or click to select.
               </Typography>
             </Box>
-            <List dense disablePadding>
+            <List dense disablePadding sx={{
+              scrollbarColor: 'rgba(139, 92, 246, 0.8) rgba(15, 23, 42, 0.9)',
+              '&::-webkit-scrollbar': {
+                width: '8px',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: 'linear-gradient(180deg, rgba(139,92,246,0.9), rgba(34,211,238,0.9))',
+                borderRadius: '999px',
+              },
+              '&::-webkit-scrollbar-track': {
+                background: 'rgba(15, 23, 42, 0.8)',
+              },
+            }}>
               {nodes
                 .slice()
                 .sort((a, b) =>
-                  b.activity - a.activity ||
+                  (nodeActivityByMode.get(b.id) ?? 0) - (nodeActivityByMode.get(a.id) ?? 0) ||
                   a.label.localeCompare(b.label),
                 )
                 .map((node) => {
@@ -727,6 +865,7 @@ const RelationshipGraph: React.FC<
                     selectedNodeId === node.id;
                   const isVisible =
                     visibleNodeIds.has(node.id);
+                  const activityValue = nodeActivityByMode.get(node.id) ?? 0;
 
                   return (
                     <ListItemButton
@@ -781,7 +920,7 @@ const RelationshipGraph: React.FC<
                             node.label
                           )
                         }
-                        secondary={`Activity: ${node.activity}`}
+                        secondary={`${getActivityLabel(activeInteractionMode)}: ${activityValue}`}
                         primaryTypographyProps={{
                           variant: 'body2',
                           noWrap: true,
@@ -975,10 +1114,18 @@ const RelationshipGraph: React.FC<
                       edge.target;
 
                   const sourceWeight =
-                    edge.sourceInteractions;
+                    getEdgeMetricValue(
+                      edge,
+                      activeInteractionMode,
+                      true,
+                    );
 
                   const targetWeight =
-                    edge.targetInteractions;
+                    getEdgeMetricValue(
+                      edge,
+                      activeInteractionMode,
+                      false,
+                    );
 
                   const maxDirectional =
                     Math.max(
@@ -1019,7 +1166,7 @@ const RelationshipGraph: React.FC<
 
                   const path = `M ${source.x} ${source.y} Q ${controlX} ${controlY} ${target.x} ${target.y}`;
 
-                  const combinedWidth = 1.5 + (edge.weight / edgeMaxWeight) * 8;
+                  const combinedWidth = 1.5 + (getEdgeWeight(edge, activeInteractionMode) / edgeMaxWeight) * 8;
 
                   return (
                     <g
@@ -1056,15 +1203,20 @@ const RelationshipGraph: React.FC<
                             </Typography>
 
                             <Typography variant="body2">
-                              Total: {edge.totalInteractions} interactions
+                              {activeInteractionMode === 'reviews'
+                                ? 'Review interactions'
+                                : activeInteractionMode === 'comments'
+                                  ? 'Comment interactions'
+                                  : 'Total interactions'}
+                              : {getEdgeWeight(edge, activeInteractionMode)}
                             </Typography>
 
                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                              {edge.source} → {edge.target}: {edge.sourceInteractions}
+                              {edge.source} → {edge.target}: {getEdgeMetricValue(edge, activeInteractionMode, true)}
                             </Typography>
 
                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                              {edge.target} → {edge.source}: {edge.targetInteractions}
+                              {edge.target} → {edge.source}: {getEdgeMetricValue(edge, activeInteractionMode, false)}
                             </Typography>
                           </Box>
                         }

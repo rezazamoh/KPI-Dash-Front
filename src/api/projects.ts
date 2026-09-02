@@ -22,6 +22,7 @@ export const fetchProject = async (
   const queryString = buildQueryString({
     username: params.username,
     topic: params.topic,
+    status: params.status,
     periods: params.periods,
     live: params.live,
   });

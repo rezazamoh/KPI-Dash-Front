@@ -15,6 +15,7 @@ export interface LeadDistributionBucket {
   max: number | null;
   count: number;
   density: number | null;
+  change_numbers?: number[];
 }
 
 export interface GapDistributionBucket {
@@ -22,20 +23,33 @@ export interface GapDistributionBucket {
   max: number | null;
   count: number;
   density: number | null;
+  change_numbers?: number[];
+}
+
+export interface DistributionBucket {
+  min: number;
+  max: number | null;
+  count: number;
+  density: number | null;
+  change_numbers?: number[];
+  change_patchsets?: Array<{
+    change_number: number;
+    patchset_number: number;
+  }>;
 }
 
 export interface LeadTimeStats {
   min: LeadTimeValue;
   mean: number;
   max: LeadTimeValue;
-  distribution: GapDistributionBucket[];
+  distribution: DistributionBucket[];
 }
 
 export interface GapTimeStats {
   min: LeadTimeValue;
   mean: number;
   max: LeadTimeValue;
-  distribution: GapDistributionBucket[];
+  distribution: DistributionBucket[];
 }
 
 export interface FailureRateDetail {

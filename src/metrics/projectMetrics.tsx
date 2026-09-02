@@ -221,15 +221,15 @@ export const projectMetricDetailDefs: readonly MetricDefinition<ProjectMetric>[]
       metrics.build_failure_rate?.changes_with_failures ?? 0,
   },
   {
-    key: 'failedOutcomes',
-    label: 'Failed outcomes',
+    key: 'failedLabels',
+    label: 'Total Failed labels',
     detail: true,
     value: (metrics) =>
       metrics.build_failure_rate?.failed_outcomes ?? 0,
   },
   {
-    key: 'totalOutcomes',
-    label: 'Total outcomes',
+    key: 'totalLabels',
+    label: 'Total labels',
     detail: true,
     value: (metrics) =>
       metrics.build_failure_rate?.total_outcomes ?? 0,
