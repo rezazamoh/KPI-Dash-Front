@@ -4,6 +4,7 @@ import { NavLink } from 'react-router-dom';
 const navItems = [
   { label: 'Gerrit Dashboard', path: '/gerrit' },
   { label: 'Jira Analysis', path: '/jira' },
+  { label: 'Settings', path: '/settings' },
   { label: 'Sign in', path: '/signin' },
 ];
 

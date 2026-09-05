@@ -2,6 +2,7 @@ import axios from 'axios';
 import {
   JiraBoardsResponse,
   JiraIssueResponse,
+  JiraIssuesResponse,
   JiraPerformanceResponse,
   JiraProjectsResponse,
 } from '@/types/jira';
@@ -52,5 +53,19 @@ export const fetchJiraPerformance = async (
 
 export const fetchJiraIssue = async (issueKey: string): Promise<JiraIssueResponse> => {
   const response = await apiClient.get(`/jira/issues/${encodeURIComponent(issueKey)}`);
+  return response.data;
+};
+
+export const fetchJiraIssues = async (
+  projectKey: string,
+  boards: number[],
+  issueKey?: string
+): Promise<JiraIssuesResponse> => {
+  const queryString = buildQueryString({
+    project: projectKey,
+    boards: boards.length ? boards.map(String) : undefined,
+    key: issueKey || undefined,
+  });
+  const response = await apiClient.get(`/jira/issues${queryString}`);
   return response.data;
 };

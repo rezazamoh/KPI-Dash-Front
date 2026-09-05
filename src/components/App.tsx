@@ -5,6 +5,7 @@ import SignInPage from '@/pages/SignInPage';
 import DeveloperDetailPage from '@/pages/DeveloperDetailPage';
 import GerritDetailPage from '@/pages/GerritDetailPage';
 import JiraAnalysisPage from '@/pages/JiraAnalysisPage';
+import SettingsPage from '@/pages/SettingsPage';
 
 const App = () => {
   return (
@@ -17,6 +18,7 @@ const App = () => {
         <Route path="/gerrit/projects/:project" element={<GerritDetailPage />}/>
         <Route path="/gerrit/teams/:team"element={<GerritDetailPage />}/>
         <Route path="/jira" element={<JiraAnalysisPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Routes>
     </MainLayout>
   );

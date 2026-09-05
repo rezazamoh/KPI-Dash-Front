@@ -11,9 +11,9 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchJiraBoards, fetchJiraIssue, fetchJiraPerformance, fetchJiraProjects } from '@/api/jira';
+import { fetchJiraBoards, fetchJiraIssue, fetchJiraIssues, fetchJiraPerformance, fetchJiraProjects } from '@/api/jira';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorPanel from '@/components/ui/ErrorPanel';
 import SectionCard from '@/components/ui/SectionCard';
@@ -23,6 +23,7 @@ import MetricsTable from '@/components/ui/MetricsTable';
 import {
   JiraBoard,
   JiraIssueResponse,
+  JiraIssuesResponse,
   JiraPerformanceMetrics,
   JiraPerformanceResponse,
   JiraProject,
@@ -49,22 +50,52 @@ const buildCountRows = (record: Record<string, number>) =>
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count);
 
+const toIssueRows = (issues: Array<Record<string, unknown>>) =>
+  issues.map((issue) => ({
+    key: String(issue.key ?? issue.issue_key ?? '—'),
+    summary: String(issue.summary ?? issue.title ?? '—'),
+    type: String(issue.type ?? issue.issue_type ?? '—'),
+    status: String(issue.status ?? '—'),
+    priority: String(issue.priority ?? '—'),
+    assignee: String(issue.assignee ?? issue.assignee_name ?? '—'),
+  }));
+
+const issueColumns = [
+  { key: 'key', label: 'Key' },
+  { key: 'summary', label: 'Summary' },
+  { key: 'type', label: 'Type' },
+  { key: 'status', label: 'Status' },
+  { key: 'priority', label: 'Priority' },
+  { key: 'assignee', label: 'Assignee' },
+];
+
 const CountChart: React.FC<{ title: string; data: Array<{ name: string; count: number }>; fill: string }> = ({
   title,
   data,
   fill,
 }) => (
-  <ChartCard title={title}>
+  <ChartCard title={title} sx={{ height: '100%', minHeight: 300 }}>
     {data.length ? (
-      <ResponsiveContainer width="100%" height={280}>
-        <BarChart data={data} margin={{ top: 20, right: 0, left: 0, bottom: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-          <XAxis dataKey="name" stroke="#cfd8fc" />
-          <YAxis stroke="#cfd8fc" />
-          <Tooltip />
-          <Bar dataKey="count" fill={fill} />
-        </BarChart>
-      </ResponsiveContainer>
+      <Box sx={{ flexGrow: 1, display: 'flex' }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 20, right: 0, left: 0, bottom: 20 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+            <XAxis
+              dataKey="name"
+              stroke="#cfd8fc"
+              interval={0}
+              angle={-35}
+              textAnchor="end"
+              height={85}
+              tickMargin={8}
+              tickFormatter={(value: string) => (value.length > 18 ? `${value.slice(0, 17)}…` : value)}
+            />
+            <YAxis stroke="#cfd8fc" />
+            <Tooltip />
+            <Bar dataKey="count" fill={fill} />
+          </BarChart>
+        </ResponsiveContainer>
+      </Box>
     ) : (
       <Typography color="text.secondary">No data available.</Typography>
     )}
@@ -72,16 +103,15 @@ const CountChart: React.FC<{ title: string; data: Array<{ name: string; count: n
 );
 
 const CountTable: React.FC<{ title: string; record: Record<string, number> }> = ({ title, record }) => (
-  <SectionCard title={title}>
-    <Box sx={{ maxHeight: 320, overflowY: 'auto' }}>
-      <MetricsTable
-        columns={[
-          { key: 'name', label: 'Name' },
-          { key: 'count', label: 'Count' },
-        ]}
-        rows={buildCountRows(record)}
-      />
-    </Box>
+  <SectionCard title={title} sx={{ height: '100%', minHeight: 300 }}>
+    <MetricsTable
+      columns={[
+        { key: 'name', label: 'Name' },
+        { key: 'count', label: 'Count' },
+      ]}
+      rows={buildCountRows(record)}
+      maxHeight={280}
+    />
   </SectionCard>
 );
 
@@ -173,6 +203,13 @@ const JiraAnalysisPage: React.FC = () => {
   const [issueKey, setIssueKey] = useState('');
   const [analyzedIssueKey, setAnalyzedIssueKey] = useState('');
   const [showRawJson, setShowRawJson] = useState(false);
+  const [issueFilter, setIssueFilter] = useState('');
+  const [debouncedIssueFilter, setDebouncedIssueFilter] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedIssueFilter(issueFilter.trim()), 400);
+    return () => clearTimeout(timer);
+  }, [issueFilter]);
 
   const projectsQuery = useQuery({ queryKey: ['jira-projects'], queryFn: fetchJiraProjects ,staleTime: 5 * 60 * 1000});
   const projects = projectsQuery.data?.projects ?? [];
@@ -205,6 +242,16 @@ const JiraAnalysisPage: React.FC = () => {
       return fetchJiraIssue(analyzedIssueKey);
     },
     enabled: Boolean(analyzedIssueKey),
+    staleTime: 5 * 60 * 1000
+  });
+
+  const issuesQuery = useQuery<JiraIssuesResponse | undefined>({
+    queryKey: ['jira-issues', appliedProject?.key, appliedBoards.map((board) => board.id), debouncedIssueFilter],
+    queryFn: async () => {
+      if (!appliedProject) return undefined;
+      return fetchJiraIssues(appliedProject.key, appliedBoards.map((board) => board.id), debouncedIssueFilter || undefined);
+    },
+    enabled: Boolean(appliedProject),
     staleTime: 5 * 60 * 1000
   });
 
@@ -352,6 +399,46 @@ const JiraAnalysisPage: React.FC = () => {
               </Grid>
             </Grid>
           </>
+        ) : null}
+
+        {appliedProject ? (
+          <SectionCard title="Issues">
+            <Stack spacing={2}>
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={2}
+                alignItems="center"
+                flexWrap="wrap"
+              >
+                <TextField
+                  label="Search issues"
+                  size="small"
+                  placeholder="Filter by issue key…"
+                  value={issueFilter}
+                  onChange={(event) => setIssueFilter(event.target.value)}
+                  sx={{ minWidth: 280, maxWidth: 420 }}
+                />
+                {issuesQuery.data ? (
+                  <Typography variant="body2" color="text.secondary">
+                    {issuesQuery.data.count} issue{issuesQuery.data.count === 1 ? '' : 's'}
+                  </Typography>
+                ) : null}
+              </Stack>
+              {issuesQuery.isLoading ? (
+                <LoadingSpinner label="Loading issues" />
+              ) : null}
+              {issuesQuery.isError ? (
+                <Alert severity="error">Unable to load issues for the selected scope.</Alert>
+              ) : null}
+              {issuesQuery.data ? (
+                issuesQuery.data.issues.length ? (
+                  <MetricsTable columns={issueColumns} rows={toIssueRows(issuesQuery.data.issues)} maxHeight={480} />
+                ) : (
+                  <Typography color="text.secondary">No issues match the current filters.</Typography>
+                )
+              ) : null}
+            </Stack>
+          </SectionCard>
         ) : null}
 
         <SectionCard title="Issue analysis">

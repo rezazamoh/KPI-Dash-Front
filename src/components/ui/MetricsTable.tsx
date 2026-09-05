@@ -67,8 +67,8 @@ const MetricsTable: React.FC<MetricsTableProps> = ({ rows, columns, maxHeight })
   }
 
   return (
-    <TableContainer component={Paper} sx={{ bgcolor: 'background.paper', maxHeight: maxHeight ?? 400 }}>
-      <Table size="small">
+    <TableContainer component={Paper} sx={{ bgcolor: 'background.paper', flexGrow: 1, maxHeight: maxHeight ?? 400, overflow: 'auto' }}>
+      <Table size="small" stickyHeader>
         <TableHead>
           <TableRow>
             {columns.map((column) => (
