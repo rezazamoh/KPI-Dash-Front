@@ -1399,8 +1399,7 @@ metricsWithPeople.forEach(
           {projectOverview.repositoryDetails.length ? (
             <Box
               sx={{
-                flexGrow: 1,
-                minHeight: 0,
+                height: 420,
                 overflowY: 'auto',
                 pr: 1,
               }}
