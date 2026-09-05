@@ -670,8 +670,6 @@ const collaborationRows = useMemo(() => {
 
   const developerCards = cardDefinitions(developerMetrics);
 
-  const cardGridSize =  Math.floor(12 / developerCards.length);
-
   const handleApplyFilters = () => {
     setSelectedRepositories([
       ...draftRepositories,
@@ -816,44 +814,51 @@ const collaborationRows = useMemo(() => {
           </Alert>
         )}
           <Stack
-            direction="row"
-            spacing={1}
-            flexWrap="wrap"
-          >
-            {comparisonRows.map((row) => (
-              <Chip
-                key={row.index}
-                clickable
-                color={
-                  selectedPeriodIndex === row.index
-                    ? 'primary'
-                    : 'default'
-                }
-                variant={
-                  selectedPeriodIndex === row.index
-                    ? 'filled'
-                    : 'outlined'
-                }
-                label={formatPeriodLabel(
-                  row.period,
+          direction="row"
+          spacing={1}
+          flexWrap="wrap"
+        >
+          {comparisonRows.map((row) => (
+            <Chip
+              key={row.index}
+              clickable
+              color={
+                selectedPeriodIndex === row.index
+                  ? 'primary'
+                  : 'default'
+              }
+              variant={
+                selectedPeriodIndex === row.index
+                  ? 'filled'
+                  : 'outlined'
+              }
+              label={formatPeriodLabel(
+                row.period,
+                row.index,
+              )}
+              onClick={() =>
+                setSelectedPeriodIndex(
                   row.index,
-                )}
-                onClick={() =>
-                  setSelectedPeriodIndex(
-                    row.index,
-                  )
-                }
-              />
-            ))}
-          </Stack>
-        <Grid container spacing={3}>
+                )
+              }
+            />
+          ))}
+        </Stack>
+
+        <Box
+          sx={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 3,
+          }}
+        >
           {developerCards.map((def) => (
-            <Grid
-              item
-              xs={12}
-              sm={6}
-              md={cardGridSize}
+            <Box
               key={def.key}
+              sx={{
+                flex: '1 1 180px',
+                minWidth: 180,
+              }}
             >
               <MetricCard
                 title={def.label}
@@ -865,21 +870,31 @@ const collaborationRows = useMemo(() => {
                 subtitle={def.card?.subtitle?.(metrics)}
                 accent={def.card?.accent}
               />
-            </Grid>
+            </Box>
           ))}
-        </Grid>
-          
-        <Grid container spacing={3}>
-          <Grid
-            item
-            xs={12}
-            lg={6}
+        </Box>
+
+        <Box
+          sx={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 3,
+          }}
+        >
+          <Box
+            sx={{
+              flex: '1 1 300px',
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
           >
-            <SectionCard title="Repository activity">
+            <SectionCard title="Repository activity" sx={{ height: '100%' }}>
               {repositoryRows.length ? (
                 <Box
                   sx={{
-                    maxHeight: 420,
+                    flexGrow: 1,
+                    minHeight: 0,
                     overflowY: 'auto',
                     pr: 1,
                   }}
@@ -1016,13 +1031,16 @@ const collaborationRows = useMemo(() => {
                 </Typography>
               )}
             </SectionCard>
-          </Grid>
-          <Grid
-            item
-            xs={12}
-            lg={6}
+          </Box>
+          <Box
+            sx={{
+              flex: '1 1 300px',
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
           >
-            <SectionCard title="Review & delivery metrics">
+            <SectionCard title="Review & delivery metrics" sx={{ height: '100%' }}>
               <Stack spacing={3}>
                 <Box>
                   <Stack direction="row" alignItems="center" justifyContent="space-between">
@@ -1300,33 +1318,23 @@ const collaborationRows = useMemo(() => {
                 </Grid>
               </Stack>
             </SectionCard>
-          </Grid>
-        </Grid>
-        <SectionCard title="Time related metrics disturbution">
-            <Grid container spacing={2}>
-                <Grid
-                    item
-                    xs={12}
-                    sm={6}
-                  >
-                <GapDistributionChart
-                  data={metrics.patchset_gap_time}
-                  title="Patchset gap distribution"
-                />
-              </Grid>
-              <Grid
-                    item
-                    xs={12}
-                    sm={6}
-                  >
-                <GapDistributionChart
-                  data={metrics.lead_time}
-                  title="Lead times distribution"
-                />
-              </Grid>
+          </Box>
+        </Box>
+        <SectionCard title="Time related metrics distribution">
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <GapDistributionChart
+                data={metrics.patchset_gap_time}
+                title="Patchset gap distribution"
+              />
             </Grid>
-
-          
+            <Grid item xs={12} sm={6}>
+              <GapDistributionChart
+                data={metrics.lead_time}
+                title="Lead times distribution"
+              />
+            </Grid>
+          </Grid>
         </SectionCard>
 
         <SectionCard title="File hotspots">
@@ -1390,19 +1398,17 @@ const collaborationRows = useMemo(() => {
         </SectionCard>
 
       <SectionCard title="Collaboration details">
-        <RelationshipTable
-          rows={collaborationRows}
-          maxHeight={360}
-        />
-      </SectionCard>
-
-        <Grid container spacing={3}>
+          <RelationshipTable
+            rows={collaborationRows}
+            maxHeight={360}
+          />
+        <Grid container spacing={3} alignItems="stretch">
           <Grid
             item
             xs={12}
             md={6}
           >
-            <SectionCard title="Review request summary">
+            <SectionCard title="Review request summary" sx={{ height: '100%' }}>
               {!reviewRequestsReceivedSummary ? (
                 <Typography color="text.secondary">
                   No review request metrics available for
@@ -1439,7 +1445,7 @@ const collaborationRows = useMemo(() => {
             xs={12}
             md={6}
           >
-            <SectionCard title="Comment summary">
+            <SectionCard title="Comment summary" sx={{ height: '100%' }}>
               {!commentsReceivedSummary ? (
                 <Typography color="text.secondary">
                   No comment metrics available for this
@@ -1471,6 +1477,7 @@ const collaborationRows = useMemo(() => {
             </SectionCard>
           </Grid>
         </Grid>
+        </SectionCard>
         {periodResults.length > 1 && (
           <PeriodComparison
             periodResults={periodResults}
@@ -1488,9 +1495,7 @@ const collaborationRows = useMemo(() => {
         <Grid
           container
           spacing={3}
-          sx={{ mt: 2 }}
         >
-          
           <Grid item xs={12}>
             <Button
               size="small"

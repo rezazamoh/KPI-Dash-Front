@@ -1,4 +1,4 @@
-import { Autocomplete, TextField } from '@mui/material';
+import FilterSelectorButton from './FilterSelectorButton';
 
 interface DeveloperSelectorProps {
   developers: string[];
@@ -7,17 +7,35 @@ interface DeveloperSelectorProps {
   multiple?: boolean;
 }
 
-const DeveloperSelector: React.FC<DeveloperSelectorProps> = ({ developers, value, onChange, multiple = false }) => (
-  <Autocomplete
-    multiple={multiple}
-    value={value as never}
-    options={developers}
-    onChange={(_, nextValue) => onChange(nextValue)}
-    renderTags={multiple ? () => `${(value as string[] | null)?.length ?? 0} selected` : undefined}
-    renderInput={(params) => <TextField {...params} label={multiple ? 'Developers' : 'Developer'} size="small" />}
-    disableClearable={!multiple}
-    sx={{ minWidth: multiple ? 180 : 220, maxWidth: multiple ? 220 : undefined }}
-  />
-);
+const DeveloperSelector: React.FC<DeveloperSelectorProps> = ({
+  developers,
+  value,
+  onChange,
+  multiple = false,
+}) => {
+  const values = Array.isArray(value)
+    ? value
+    : value
+      ? [value]
+      : [];
+
+  const handleChange = (nextValue: string[]) => {
+    if (multiple) {
+      onChange(nextValue);
+    } else {
+      onChange(nextValue[0] ?? null);
+    }
+  };
+
+  return (
+    <FilterSelectorButton
+      label={multiple ? 'Developers' : 'Developer'}
+      options={developers}
+      value={values}
+      onChange={handleChange}
+      multiple={multiple}
+    />
+  );
+};
 
 export default DeveloperSelector;

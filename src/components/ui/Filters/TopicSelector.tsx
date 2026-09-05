@@ -1,4 +1,4 @@
-import { Autocomplete, TextField } from '@mui/material';
+import FilterSelectorButton from './FilterSelectorButton';
 
 interface TopicSelectorProps {
   topics: string[];
@@ -9,19 +9,13 @@ interface TopicSelectorProps {
 }
 
 const TopicSelector: React.FC<TopicSelectorProps> = ({ topics, value, onChange, disabled = false, onOpenChange }) => (
-  <Autocomplete
-    multiple
-    value={value}
+  <FilterSelectorButton
+    label="Topics"
     options={topics}
-    disableCloseOnSelect
-    filterSelectedOptions={false}
-    onChange={(_, nextValue) => onChange(nextValue)}
-    onOpen={() => onOpenChange?.(true)}
-    onClose={() => onOpenChange?.(false)}
-    renderTags={() => `${value.length} selected`}
-    renderInput={(params) => <TextField {...params} label="Topics" size="small" />}
+    value={value}
+    onChange={onChange}
     disabled={disabled}
-    sx={{ minWidth: 180, maxWidth: 220 }}
+    onOpenChange={onOpenChange}
   />
 );
 

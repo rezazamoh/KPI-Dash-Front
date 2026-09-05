@@ -143,19 +143,16 @@ const GerritDashboardPage: React.FC = () => {
       name,
       members,
       projects,
-      default_teams,
     }: {
       teamId: number;
       name: string;
       members: string[];
       projects: string[];
-      default_teams?: string[];
     }) =>
       updateTeam(teamId, {
         name,
         members,
         projects,
-        default_teams,
       }),
 
     onSuccess: () => {
@@ -592,7 +589,7 @@ const GerritDashboardPage: React.FC = () => {
             options={developers}
             value={teamMembers}
             onChange={(event, newValue) => setTeamMembers(newValue)}
-            filterSelectedOptions
+            disableCloseOnSelect
             renderTags={(value, getTagProps) =>
               value.map((developer, index) => (
                 <Chip
@@ -611,13 +608,13 @@ const GerritDashboardPage: React.FC = () => {
               />
             )}
           />
-                    <Autocomplete
+          <Autocomplete
             multiple
             fullWidth
             options={projects}
             value={teamProjects}
+            disableCloseOnSelect
             onChange={(event, newValue) => setTeamProjects(newValue)}
-            filterSelectedOptions
             renderTags={(value, getTagProps) =>
               value.map((project, index) => (
                 <Chip

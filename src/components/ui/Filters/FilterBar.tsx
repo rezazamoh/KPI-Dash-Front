@@ -72,12 +72,13 @@ const FilterBar: React.FC<FilterBarProps> = ({
   onResetFilters,
   onTopicMenuOpenChange,
 }) => (
-  <Stack spacing={3} sx={{ mb: 4 }}>
+  <Stack spacing={2}>
     <Stack
       direction={{ xs: 'column', md: 'row' }}
-      spacing={2}
+      spacing={1.5}
       flexWrap="wrap"
       alignItems={{ xs: 'stretch', md: 'center' }}
+      justifyContent="flex-start"
     >
       {showDeveloperSelector ? (
         <DeveloperSelector

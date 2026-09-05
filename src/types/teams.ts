@@ -5,7 +5,6 @@ export interface Team {
   name: string;
   members: string[];
   projects: string[];
-  default_teams?: string[];
 }
 
 export interface TeamPerformanceTeam {

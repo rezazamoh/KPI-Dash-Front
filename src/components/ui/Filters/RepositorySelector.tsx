@@ -1,4 +1,4 @@
-import { Autocomplete, TextField } from '@mui/material';
+import FilterSelectorButton from './FilterSelectorButton';
 
 interface RepositorySelectorProps {
   repositories: string[];
@@ -7,16 +7,11 @@ interface RepositorySelectorProps {
 }
 
 const RepositorySelector: React.FC<RepositorySelectorProps> = ({ repositories, value, onChange }) => (
-  <Autocomplete
-    multiple
-    value={value}
+  <FilterSelectorButton
+    label="Repositories"
     options={repositories}
-    disableCloseOnSelect
-    filterSelectedOptions={false}
-    onChange={(_, nextValue) => onChange(nextValue)}
-    renderTags={() => `${value.length} selected`}
-    renderInput={(params) => <TextField {...params} label="Repositories" size="small" />}
-    sx={{ minWidth: 180, maxWidth: 220 }}
+    value={value}
+    onChange={onChange}
   />
 );
 

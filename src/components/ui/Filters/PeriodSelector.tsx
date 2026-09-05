@@ -70,18 +70,14 @@ const addWeeks = (date: Date, amount: number) => {
   return addDays(date, amount * 7);
 };
 
-const addMonths = (date: Date, amount: number) => {
-  const next = new Date(date);
-  next.setMonth(next.getMonth() + amount);
-  return next;
-};
-
 const PeriodSelector: React.FC<PeriodSelectorProps> = ({
   periods,
   onChange,
 }) => {
   const [quickAmount, setQuickAmount] = useState<number>(1);
   const [quickUnit, setQuickUnit] = useState<'days' | 'weeks' | 'months'>('months');
+  const [quickMonthStartDay, setQuickMonthStartDay] = useState<number>(1);
+  const [quickWeekStartDay, setQuickWeekStartDay] = useState<string>('Saturday');
   const [quickMenuAnchor, setQuickMenuAnchor] = useState<null | HTMLElement>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -116,27 +112,54 @@ const PeriodSelector: React.FC<PeriodSelectorProps> = ({
     }
 
     const generated = [] as Period[];
-    const anchor = new Date();
 
-    for (let index = amount; index >= 1; index -= 1) {
-      const end =
-        quickUnit === 'days'
-          ? addDays(anchor, -(amount - index))
-          : quickUnit === 'weeks'
-            ? addWeeks(anchor, -(amount - index))
-            : addMonths(anchor, -(amount - index));
+    const isWeekDay = (target: number) => {
+      const now = new Date();
+      const diff = (((now.getDay() - target) % 7) + 7) % 7;
+      return addDays(now, -diff);
+    };
 
-      const start =
-        quickUnit === 'days'
-          ? addDays(end, -1)
-          : quickUnit === 'weeks'
-            ? addWeeks(end, -1)
-            : addMonths(end, -1);
+    const weekDayToNumber: Record<string, number> = {
+      Sunday: 0,
+      Monday: 1,
+      Tuesday: 2,
+      Wednesday: 3,
+      Thursday: 4,
+      Friday: 5,
+      Saturday: 6,
+    };
 
-      generated.push({
-        start: toISODate(start),
-        end: toISODate(end),
-      });
+    if (quickUnit === 'months') {
+      const now = new Date();
+      for (let index = amount; index >= 1; index -= 1) {
+        const monthOffset = amount - index;
+        const start = new Date(
+          now.getFullYear(),
+          now.getMonth() - monthOffset,
+          quickMonthStartDay,
+        );
+        const end = new Date(
+          now.getFullYear(),
+          now.getMonth() - monthOffset + 1,
+          quickMonthStartDay - 1,
+        );
+        generated.push({ start: toISODate(start), end: toISODate(end) });
+      }
+    } else if (quickUnit === 'weeks') {
+      const startTarget = weekDayToNumber[quickWeekStartDay] ?? 6;
+      const weekStart = isWeekDay(startTarget);
+      for (let index = amount; index >= 1; index -= 1) {
+        const start = addWeeks(weekStart, -(amount - index));
+        const end = addDays(start, 6);
+        generated.push({ start: toISODate(start), end: toISODate(end) });
+      }
+    } else {
+      const anchor = new Date();
+      for (let index = amount; index >= 1; index -= 1) {
+        const end = addDays(anchor, -(amount - index));
+        const start = addDays(end, -1);
+        generated.push({ start: toISODate(start), end: toISODate(end) });
+      }
     }
 
     const uniqueRanges = dedupePeriods([
@@ -164,6 +187,7 @@ const PeriodSelector: React.FC<PeriodSelectorProps> = ({
         variant="outlined"
         startIcon={<CalendarMonthIcon fontSize="small" />}
         onClick={() => setDialogOpen(true)}
+        sx={{ minWidth: 150 }}
       >
         Periods ({periods.length})
       </Button>
@@ -255,6 +279,52 @@ const PeriodSelector: React.FC<PeriodSelectorProps> = ({
                 <MenuItem value="weeks">weeks</MenuItem>
                 <MenuItem value="months">months</MenuItem>
               </TextField>
+
+              {quickUnit === 'months' ? (
+                <TextField
+                  select
+                  size="small"
+                  label="Start day of month"
+                  value={quickMonthStartDay}
+                  onChange={(event) =>
+                    setQuickMonthStartDay(Number(event.target.value))
+                  }
+                >
+                  {Array.from({ length: 28 }, (_, index) => index + 1).map(
+                    (day) => (
+                      <MenuItem key={day} value={day}>
+                        {day}
+                      </MenuItem>
+                    ),
+                  )}
+                </TextField>
+              ) : null}
+
+              {quickUnit === 'weeks' ? (
+                <TextField
+                  select
+                  size="small"
+                  label="Week starts on"
+                  value={quickWeekStartDay}
+                  onChange={(event) =>
+                    setQuickWeekStartDay(event.target.value)
+                  }
+                >
+                  {[
+                    'Saturday',
+                    'Sunday',
+                    'Monday',
+                    'Tuesday',
+                    'Wednesday',
+                    'Thursday',
+                    'Friday',
+                  ].map((day) => (
+                    <MenuItem key={day} value={day}>
+                      {day}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              ) : null}
             </Stack>
           </Menu>
         </Stack>

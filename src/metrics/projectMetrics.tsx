@@ -19,9 +19,11 @@ const countPeople = (
 ): number =>
   people?.reduce((sum, item) => sum + item.count, 0) ?? 0;
 
-const interactionCount = (metrics: ProjectMetric): number =>
+const reviewCount = (metrics: ProjectMetric): number =>
   countPeople(metrics.review_requests_sent?.people) +
-  countPeople(metrics.review_requests_received?.people) +
+  countPeople(metrics.review_requests_received?.people);
+
+const commentCount = (metrics: ProjectMetric): number =>
   countPeople(metrics.comments_sent?.people) +
   countPeople(metrics.comments_received?.people);
 
@@ -189,14 +191,28 @@ export const projectMetricDefs: readonly MetricDefinition<ProjectMetric>[] = [
     },
   },
   {
-    key: 'interactions',
-    label: 'Interactions',
+    key: 'reviews',
+    label: 'Reviews',
     snapshot: true,
-    value: (metrics) => interactionCount(metrics),
+    value: (metrics) => reviewCount(metrics),
     format: (value) => String(value ?? 0),
     comparison: {
-      label: 'Interactions',
-      color: '#e91e63',
+      label: 'Reviews',
+      color: '#2196f3',
+      chart: true,
+      format: (value) => String(value ?? 0),
+      aggregate: (_, values) => sumDefined(values as number[]),
+    },
+  },
+  {
+    key: 'comments',
+    label: 'Comments',
+    snapshot: true,
+    value: (metrics) => commentCount(metrics),
+    format: (value) => String(value ?? 0),
+    comparison: {
+      label: 'Comments',
+      color: '#4caf50',
       chart: true,
       format: (value) => String(value ?? 0),
       aggregate: (_, values) => sumDefined(values as number[]),

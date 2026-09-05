@@ -14,8 +14,9 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink, useLocation, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { fetchProject } from '@/api/projects';
-import { fetchTeamPerformance } from '@/api/teams';
+import { fetchProject, fetchProjects } from '@/api/projects';
+import { fetchDevelopers } from '@/api/developers';
+import { fetchTeamPerformance, fetchTeams } from '@/api/teams';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorPanel from '@/components/ui/ErrorPanel';
 import SectionCard from '@/components/ui/SectionCard';
@@ -355,6 +356,18 @@ const ProjectDetailPage: React.FC = () => {
     staleTime: 5 * 60 * 1000,
   });
 
+  const developersQuery = useQuery({
+    queryKey: ['developers'],
+    queryFn: () => fetchDevelopers(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const projectsQuery = useQuery({
+    queryKey: ['projects'],
+    queryFn: () => fetchProjects(),
+    staleTime: 5 * 60 * 1000,
+  });
+
   const periodResults = useMemo(() => {
     const result = detailQuery.data;
 
@@ -376,28 +389,77 @@ const ProjectDetailPage: React.FC = () => {
     ? data?.team?.name ?? data?.filters?.team?.name ?? name
     : name;
 
+  const teamsQuery = useQuery({
+    queryKey: ['teams'],
+    queryFn: fetchTeams,
+    enabled: isTeam,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const teamDefinition = useMemo(
+    () =>
+      teamsQuery.data?.find(
+        (teamOption) =>
+          String(teamOption.id) === name ||
+          teamOption.name === name,
+      ),
+    [teamsQuery.data, name],
+  );
+
+  const defaultTeamDevelopers = useMemo(
+    () => teamDefinition?.members ?? [],
+    [teamDefinition],
+  );
+
+  const defaultTeamRepositories = useMemo(
+    () => teamDefinition?.projects ?? [],
+    [teamDefinition],
+  );
+
   useEffect(() => {
     initializedTeamRepositories.current = false;
   }, [isTeam, name]);
 
   useEffect(() => {
-    const teamProjects = isTeam ? data?.team?.projects : null;
-
     if (
       !isTeam ||
-      reposFromQuery.length > 0 ||
       initializedTeamRepositories.current ||
-      !teamProjects?.length
+      (defaultTeamDevelopers.length === 0 &&
+        defaultTeamRepositories.length === 0)
     ) {
       return;
     }
 
-    initializedTeamRepositories.current = true;
-    setSelectedRepositories(teamProjects);
-    setDraftRepositories(teamProjects);
-  }, [data, isTeam, reposFromQuery]);
+    if (
+      developersFromQuery.length === 0 &&
+      defaultTeamDevelopers.length > 0
+    ) {
+      setSelectedDevelopers(defaultTeamDevelopers);
+      setDraftDevelopers(defaultTeamDevelopers);
+    }
 
-  const developerOptions = data?.developers ?? [];
+    if (
+      reposFromQuery.length === 0 &&
+      defaultTeamRepositories.length > 0
+    ) {
+      setSelectedRepositories(defaultTeamRepositories);
+      setDraftRepositories(defaultTeamRepositories);
+    }
+
+    initializedTeamRepositories.current = true;
+  }, [
+    isTeam,
+    defaultTeamDevelopers,
+    defaultTeamRepositories,
+    reposFromQuery,
+    developersFromQuery,
+  ]);
+
+  const developerOptions =
+    developersQuery.data?.developers?.length
+      ? developersQuery.data.developers
+      : (data?.developers ?? []);
+
   const topicOptions = data?.topics ?? [];
 
   const interactionGraph = useMemo(
@@ -549,6 +611,12 @@ const ProjectDetailPage: React.FC = () => {
   }, [developerMetrics, activeTimeDistributionDevelopers]);
 
   const repositoryOptions = useMemo(() => {
+    const fullProjects = projectsQuery.data?.projects ?? [];
+
+    if (fullProjects.length > 0) {
+      return [...fullProjects].sort();
+    }
+
     const repoSet = new Set<string>();
 
     Object.values(developerMetrics).forEach(
@@ -564,7 +632,7 @@ const ProjectDetailPage: React.FC = () => {
     );
 
     return Array.from(repoSet).sort();
-  }, [developerMetrics]);
+  }, [projectsQuery.data, developerMetrics]);
 
   const projectOverview = useMemo(() => {
     const statusTotals = new Map<string, number>();
@@ -1022,7 +1090,7 @@ metricsWithPeople.forEach(
           showRepositorySelector={isTeam}
           showTopicSelector
           topicDisabled={
-            draftRepositories.length === 0 ||
+            draftRepositories.length === 0 &&
             draftDevelopers.length === 0
           }
           developerMultiple
@@ -1064,36 +1132,36 @@ metricsWithPeople.forEach(
           }
         />
               <Stack
-                direction="row"
-                spacing={1}
-                flexWrap="wrap"
-              >
-                {comparisonRows.map((row) => (
-                  <Chip
-                    key={row.index}
-                    clickable
-                    color={
-                      selectedPeriodIndex === row.index
-                        ? 'primary'
-                        : 'default'
-                    }
-                    variant={
-                      selectedPeriodIndex === row.index
-                        ? 'filled'
-                        : 'outlined'
-                    }
-                    label={formatPeriodLabel(
-                      row.period,
-                      row.index,
-                    )}
-                    onClick={() =>
-                      setSelectedPeriodIndex(
-                        row.index,
-                      )
-                    }
-                  />
-                ))}
-              </Stack>
+          direction="row"
+          spacing={1}
+          flexWrap="wrap"
+        >
+          {comparisonRows.map((row) => (
+            <Chip
+              key={row.index}
+              clickable
+              color={
+                selectedPeriodIndex === row.index
+                  ? 'primary'
+                  : 'default'
+              }
+              variant={
+                selectedPeriodIndex === row.index
+                  ? 'filled'
+                  : 'outlined'
+              }
+              label={formatPeriodLabel(
+                row.period,
+                row.index,
+              )}
+              onClick={() =>
+                setSelectedPeriodIndex(
+                  row.index,
+                )
+              }
+            />
+          ))}
+        </Stack>
         <SectionCard title="Project status overview">
           {projectOverview.topStatuses.length > 0 ? (
             <Grid container spacing={2}>
@@ -1269,14 +1337,22 @@ metricsWithPeople.forEach(
           </Grid>
         </Grid>
       </SectionCard>
-      <Grid container spacing={2}>
-        <Grid
-          item
-          xs={12}
-          sm={6}
-          md={6}
+      <Box
+          sx={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 3,
+          }}
         >
-        <ChartCard title="Changes by developer">
+          <Box
+            sx={{
+              flex: '1 1 300px',
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <ChartCard title="Changes by developer" sx={{ height: '100%' }}>
           <ResponsiveContainer
             width="100%"
             height={320}
@@ -1310,18 +1386,21 @@ metricsWithPeople.forEach(
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
-        </Grid>
-        <Grid
-          item
-          xs={12}
-          sm={6}
-          md={6}
-        >
-        <SectionCard title="Repository activity">
+          </Box>
+          <Box
+            sx={{
+              flex: '1 1 300px',
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+          <SectionCard title="Repository activity" sx={{ height: '100%' }}>
           {projectOverview.repositoryDetails.length ? (
             <Box
               sx={{
-                maxHeight: 420,
+                flexGrow: 1,
+                minHeight: 0,
                 overflowY: 'auto',
                 pr: 1,
               }}
@@ -1551,8 +1630,8 @@ metricsWithPeople.forEach(
             </Typography>
           )}
         </SectionCard>
-        </Grid>
-      </Grid>
+          </Box>
+        </Box>
         <SectionCard title="Collaboration network">
           <RelationshipGraph
             title="Project collaboration network"
@@ -1606,7 +1685,6 @@ metricsWithPeople.forEach(
         <Grid
           container
           spacing={3}
-          sx={{ mt: 2 }}
         >
           <Grid item xs={12}>
             <Button

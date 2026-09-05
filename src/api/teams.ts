@@ -6,21 +6,18 @@ export interface Team {
   name: string;
   members: string[];
   projects: string[];
-  default_teams?: string[];
 }
 
 export interface CreateTeamRequest {
   name: string;
   members: string[];
   projects: string[];
-  default_teams?: string[];
 }
 
 export interface UpdateTeamRequest {
   name: string;
   members: string[];
   projects: string[];
-  default_teams?: string[];
 }
 
 export const fetchTeams = async (): Promise<Team[]> => {
