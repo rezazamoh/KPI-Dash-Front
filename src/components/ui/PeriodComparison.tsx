@@ -13,6 +13,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -60,6 +61,20 @@ function PeriodComparison<T, M>({
   const chartMetrics = comparisonMetrics.filter(
     (metric) => metric.comparison?.chart,
   );
+
+  const chartGroups = useMemo(() => {
+    const groups = new Map<string, typeof chartMetrics>();
+
+    chartMetrics.forEach((metric) => {
+      const groupKey = metric.comparison?.chartGroup ?? metric.key;
+      const group = groups.get(groupKey) ?? [];
+
+      group.push(metric);
+      groups.set(groupKey, group);
+    });
+
+    return Array.from(groups.values());
+  }, [chartMetrics]);
 
   const rows = useMemo(
     () =>
@@ -197,19 +212,21 @@ function PeriodComparison<T, M>({
             </Stack>
 
             <Grid container spacing={2}>
-              {chartMetrics.map((metric) => (
+              {chartGroups.map((group) => (
                 <Grid
                   item
                   xs={12}
                   md={6}
-                  key={metric.key}
+                  key={group[0].comparison?.chartGroup ?? group[0].key}
                 >
                   <Box>
                     <Typography
                       variant="subtitle2"
                       gutterBottom
                     >
-                      {metric.comparison?.label ?? metric.label}
+                      {group.length === 1
+                        ? group[0].comparison?.label ?? group[0].label
+                        : group[0].comparison?.chartGroup}
                     </Typography>
 
                     <ResponsiveContainer
@@ -230,6 +247,7 @@ function PeriodComparison<T, M>({
                             strokeDasharray="3 3"
                             stroke="rgba(255,255,255,0.08)"
                           />
+                          <Legend />
                           <XAxis
                             dataKey="period"
                             stroke="#cfd8fc"
@@ -243,20 +261,27 @@ function PeriodComparison<T, M>({
                             stroke="#cfd8fc"
                             tick={{ fontSize: 11 }}
                             tickFormatter={(value) =>
-                              formatChartValue(metric, value)
+                              formatChartValue(group[0], value)
                             }
                           />
-                          <Tooltip
-                            formatter={(value) => [
+                          <Tooltip formatter={(value, name) => {
+                            const metric = group.find(
+                              (candidate) => candidate.key === name,
+                            ) ?? group[0];
+
+                            return [
                               formatChartValue(metric, value),
                               metric.comparison?.label ?? metric.label,
-                            ]}
-                          />
-                          <Bar
-                            dataKey={metric.key}
-                            fill={metric.comparison?.color}
-                            name={metric.comparison?.label ?? metric.label}
-                          />
+                            ];
+                          }} />
+                          {group.map((metric) => (
+                            <Bar
+                              key={metric.key}
+                              dataKey={metric.key}
+                              fill={metric.comparison?.color}
+                              name={metric.comparison?.label ?? metric.label}
+                            />
+                          ))}
                         </BarChart>
                       ) : (
                         <LineChart
@@ -272,6 +297,7 @@ function PeriodComparison<T, M>({
                             strokeDasharray="3 3"
                             stroke="rgba(255,255,255,0.08)"
                           />
+                          <Legend />
                           <XAxis
                             dataKey="period"
                             stroke="#cfd8fc"
@@ -285,23 +311,30 @@ function PeriodComparison<T, M>({
                             stroke="#cfd8fc"
                             tick={{ fontSize: 11 }}
                             tickFormatter={(value) =>
-                              formatChartValue(metric, value)
+                              formatChartValue(group[0], value)
                             }
                           />
-                          <Tooltip
-                            formatter={(value) => [
+                          <Tooltip formatter={(value, name) => {
+                            const metric = group.find(
+                              (candidate) => candidate.key === name,
+                            ) ?? group[0];
+
+                            return [
                               formatChartValue(metric, value),
                               metric.comparison?.label ?? metric.label,
-                            ]}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey={metric.key}
-                            stroke={metric.comparison?.color}
-                            name={metric.comparison?.label ?? metric.label}
-                            strokeWidth={2}
-                            dot={{ r: 3 }}
-                          />
+                            ];
+                          }} />
+                          {group.map((metric) => (
+                            <Line
+                              key={metric.key}
+                              type="monotone"
+                              dataKey={metric.key}
+                              stroke={metric.comparison?.color}
+                              name={metric.comparison?.label ?? metric.label}
+                              strokeWidth={2}
+                              dot={{ r: 3 }}
+                            />
+                          ))}
                         </LineChart>
                       )}
                     </ResponsiveContainer>

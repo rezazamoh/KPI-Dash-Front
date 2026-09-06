@@ -13,6 +13,7 @@ export interface ComparisonOptions<M, V = unknown> {
   label?: string;
   color: string;
   chart?: boolean;
+  chartGroup?: string;
   format: (value: unknown | null) => string;
   aggregate?: (items: M[], values: V[]) => V | null;
 }

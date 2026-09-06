@@ -45,6 +45,7 @@ import {
 } from '@/metrics/types';
 import { projectMetricDefs, projectMetricDetailDefs } from '@/metrics/projectMetrics';
 import { GapTimeStats, LeadTimeStats } from '@/types/metrics';
+import type { DeveloperCoreMetrics } from '@/types/metrics';
 import { Period } from '@/types/periods';
 
 const statusPalette: Record<string, string> = {
@@ -116,7 +117,13 @@ const aggregateDistributionBuckets = <T extends { distribution: Array<{ min: num
 };
 
 const aggregateDeveloperTimeStats = <T extends LeadTimeStats | GapTimeStats>(
-  developerMetrics: Record<string, { [key: string]: T | null }>,
+  developerMetrics: Record<
+    string,
+    {
+      lead_time?: T | null;
+      patchset_gap_time?: T | null;
+    }
+  >,
   key: 'lead_time' | 'patchset_gap_time',
   selectedDevelopers?: string[],
 ): T | null => {
@@ -181,7 +188,7 @@ const normalizeLabelStats = (
 
       const labelTotal =
         entry.total ??
-        Object.values(values).reduce(
+        Object.values(values).reduce<number>(
           (sum, vote) => sum + toCount(vote),
           0,
         );
@@ -230,6 +237,98 @@ interface CollaboratorEntry {
     commentsSent?: Record<string, LabelStats>;
     commentsReceived?: Record<string, LabelStats>;
   };
+}
+
+type ProjectPeopleStats = Omit<
+  DeveloperCoreMetrics['review_requests_received'],
+  'people'
+> & {
+  people: Array<{
+    username: string;
+    count: number;
+    by_label?: Record<string, unknown>;
+    stats?: {
+      by_label?: Record<string, unknown>;
+    };
+  }>;
+  by_label?: Record<string, unknown>;
+  stats?: {
+    by_label?: Record<string, unknown>;
+  };
+};
+
+const getProjectPersonLabels = (
+  metric: ProjectPeopleStats | null | undefined,
+  person: ProjectPeopleStats['people'][number],
+) => {
+  if (
+    person.by_label &&
+    Object.keys(person.by_label).length > 0
+  ) {
+    return person.by_label;
+  }
+
+  if (
+    person.stats?.by_label &&
+    Object.keys(person.stats.by_label).length > 0
+  ) {
+    return person.stats.by_label;
+  }
+
+  const metricLabels = metric?.by_label;
+
+  if (metricLabels?.[person.username]) {
+    const personLabels = metricLabels[person.username];
+
+    return typeof personLabels === 'object' && personLabels !== null
+      ? personLabels as Record<string, unknown>
+      : undefined;
+  }
+
+  if (metricLabels && Object.keys(metricLabels).length > 0) {
+    return metricLabels;
+  }
+
+  const metricStatsLabels = metric?.stats?.by_label;
+
+  if (
+    metricStatsLabels &&
+    Object.keys(metricStatsLabels).length > 0
+  ) {
+    const personLabels = metricStatsLabels[person.username];
+
+    if (
+      personLabels &&
+      typeof personLabels === 'object'
+    ) {
+      return personLabels as Record<string, unknown>;
+    }
+
+    return metricStatsLabels;
+  }
+
+  return undefined;
+};
+
+interface ProjectDeveloperMetrics
+  extends Omit<
+    DeveloperCoreMetrics,
+    | 'review_requests_received'
+    | 'review_requests_sent'
+    | 'comments_received'
+    | 'comments_sent'
+  > {
+  review_requests_received: ProjectPeopleStats;
+  review_requests_sent: ProjectPeopleStats;
+  comments_received: ProjectPeopleStats;
+  comments_sent: ProjectPeopleStats;
+  file_hotspots?: Array<{
+    file: string;
+    change_count: number;
+    patchset_count: number;
+    lines_added: number;
+    lines_deleted: number;
+  }>;
 }
 
 const ProjectDetailPage: React.FC = () => {
@@ -525,8 +624,12 @@ const ProjectDetailPage: React.FC = () => {
     };
   }, [interactionGraph]);
 
-  const developerMetrics = useMemo(
-    () => data?.developer_metrics ?? {},
+  const developerMetrics = useMemo<Record<string, ProjectDeveloperMetrics>>(
+    () =>
+      (data?.developer_metrics ?? {}) as Record<
+        string,
+        ProjectDeveloperMetrics
+      >,
     [data],
   );
 
@@ -610,31 +713,7 @@ const ProjectDetailPage: React.FC = () => {
       .filter((entry) => entry.stats && entry.stats.distribution.length > 0);
   }, [developerMetrics, activeTimeDistributionDevelopers]);
 
-  const repositoryOptions = useMemo(() => {
-    const fullProjects = projectsQuery.data?.projects ?? [];
-
-    if (fullProjects.length > 0) {
-      return [...fullProjects].sort();
-    }
-
-    const repoSet = new Set<string>();
-
-    Object.values(developerMetrics).forEach(
-      (metrics) => {
-        Object.values(
-          metrics.changes_by_status_per_repo ?? {},
-        ).forEach((repos) => {
-          Object.keys(repos).forEach((repo) =>
-            repoSet.add(repo),
-          );
-        });
-      },
-    );
-
-    return Array.from(repoSet).sort();
-  }, [projectsQuery.data, developerMetrics]);
-
-  const projectOverview = useMemo(() => {
+  const projectMetrics = useMemo(() => {
     const statusTotals = new Map<string, number>();
 
     const repoTotals = new Map<
@@ -652,17 +731,93 @@ const ProjectDetailPage: React.FC = () => {
       CollaboratorEntry
     >();
 
+    interactionGraph.edges.forEach((edge) => {
+      const sourceEntry: CollaboratorEntry =
+        collaboratorTotals.get(edge.source) ?? {
+          username: edge.source,
+          reviewSent: 0,
+          reviewReceived: 0,
+          commentsSent: 0,
+          commentsReceived: 0,
+          total: 0,
+          breakdowns: {},
+        };
+
+      const targetEntry: CollaboratorEntry =
+        collaboratorTotals.get(edge.target) ?? {
+          username: edge.target,
+          reviewSent: 0,
+          reviewReceived: 0,
+          commentsSent: 0,
+          commentsReceived: 0,
+          total: 0,
+          breakdowns: {},
+        };
+
+      sourceEntry.reviewSent += edge.sourceReviewCount;
+      sourceEntry.reviewReceived += edge.targetReviewCount;
+      sourceEntry.commentsSent += edge.sourceCommentCount;
+      sourceEntry.commentsReceived += edge.targetCommentCount;
+      sourceEntry.total += edge.sourceInteractions + edge.targetInteractions;
+
+      targetEntry.reviewSent += edge.targetReviewCount;
+      targetEntry.reviewReceived += edge.sourceReviewCount;
+      targetEntry.commentsSent += edge.targetCommentCount;
+      targetEntry.commentsReceived += edge.sourceCommentCount;
+      targetEntry.total += edge.sourceInteractions + edge.targetInteractions;
+
+      collaboratorTotals.set(edge.source, sourceEntry);
+      collaboratorTotals.set(edge.target, targetEntry);
+    });
+
+    const repoNames = new Set<string>();
+
+    const fileHotspotMap = new Map<
+      string,
+      {
+        file: string;
+        change_count: number;
+        patchset_count: number;
+        lines_added: number;
+        lines_deleted: number;
+      }
+    >();
+
+    const developerRows: Array<{
+      username: string;
+      metrics: ProjectDeveloperMetrics;
+      [key: string]: unknown;
+    }> = [];
+    const developerChartData: Array<{
+      name: string;
+      changes: number;
+    }> = [];
+    const metricDefinitions = snapshotDefinitions(projectMetricDefs);
+
     let totalChanges = 0;
 
     Object.entries(developerMetrics).forEach(
       ([developer, metrics]) => {
         totalChanges += metrics.change_count ?? 0;
 
+        developerRows.push({
+          username: developer,
+          metrics,
+          ...buildMetricRow(metrics, metricDefinitions),
+        });
+
+        developerChartData.push({
+          name: developer,
+          changes: metrics.change_count ?? 0,
+        });
+
         Object.entries(
           metrics.changes_by_status_per_repo ?? {},
         ).forEach(([status, repos]) => {
           Object.entries(repos).forEach(
             ([repo, count]) => {
+              repoNames.add(repo);
+
               const repoEntry =
                 repoTotals.get(repo) ?? {
                   total: 0,
@@ -695,74 +850,93 @@ const ProjectDetailPage: React.FC = () => {
           );
         });
 
-const metricsWithPeople = [
-  {
-    metric: metrics.review_requests_sent,
-    field: 'reviewSent' as const,
-    breakdown: 'reviewSent' as const,
-  },
-  {
-    metric: metrics.review_requests_received,
-    field: 'reviewReceived' as const,
-    breakdown: 'reviewReceived' as const,
-  },
-  {
-    metric: metrics.comments_sent,
-    field: 'commentsSent' as const,
-    breakdown: 'commentsSent' as const,
-  },
-  {
-    metric: metrics.comments_received,
-    field: 'commentsReceived' as const,
-    breakdown: 'commentsReceived' as const,
-  },
-];
+        const metricsWithPeople = [
+          {
+            metric: metrics.review_requests_received,
+            breakdown: 'reviewSent' as const,
+          },
+          {
+            metric: metrics.review_requests_sent,
+            breakdown: 'reviewReceived' as const,
+          },
+          {
+            metric: metrics.comments_received,
+            breakdown: 'commentsSent' as const,
+          },
+          {
+            metric: metrics.comments_sent,
+            breakdown: 'commentsReceived' as const,
+          },
+        ];
 
-metricsWithPeople.forEach(
-  ({ metric, field, breakdown }) => {
-    metric?.people?.forEach((person) => {
-      const existing: CollaboratorEntry =
-        collaboratorTotals.get(
-          person.username,
-        ) ?? {
-          username: person.username,
-          reviewSent: 0,
-          reviewReceived: 0,
-          commentsSent: 0,
-          commentsReceived: 0,
-          total: 0,
-          breakdowns: {},
-        };
+        metricsWithPeople.forEach(
+          ({ metric, breakdown }) => {
+            metric?.people?.forEach((person) => {
+              const existing: CollaboratorEntry =
+                collaboratorTotals.get(
+                  person.username,
+                ) ?? {
+                  username: person.username,
+                  reviewSent: 0,
+                  reviewReceived: 0,
+                  commentsSent: 0,
+                  commentsReceived: 0,
+                  total: 0,
+                  breakdowns: {},
+                };
 
-      existing[field] += person.count;
-      existing.total += person.count;
+              const personLabels = getProjectPersonLabels(
+                metric,
+                person,
+              );
 
-      if (person.by_label) {
-        const incoming = normalizeLabelStats(
-          person.by_label,
+              if (personLabels) {
+                const incoming = normalizeLabelStats(
+                  personLabels,
+                );
+
+                const current =
+                  existing.breakdowns[breakdown];
+
+                if (!current) {
+                  existing.breakdowns[breakdown] =
+                    structuredClone(incoming);
+                } else {
+                  mergeLabelStats(
+                    current,
+                    incoming,
+                  );
+                }
+              }
+
+              collaboratorTotals.set(
+                person.username,
+                existing,
+              );
+            });
+          },
         );
 
-        const current =
-          existing.breakdowns[breakdown];
+        (metrics.file_hotspots ?? []).forEach(
+          (hotspot) => {
+            const existing = fileHotspotMap.get(hotspot.file);
 
-        if (!current) {
-          existing.breakdowns[breakdown] =
-            structuredClone(incoming);
-        } else {
-          mergeLabelStats(
-            current,
-            incoming,
-          );
-        }
-      }
-
-      collaboratorTotals.set(
-        person.username,
-        existing,
-      );
-    });
-  },
-);
+            if (existing) {
+              existing.change_count += hotspot.change_count;
+              existing.patchset_count += hotspot.patchset_count;
+              existing.lines_added += hotspot.lines_added;
+              existing.lines_deleted += hotspot.lines_deleted;
+            } else {
+              fileHotspotMap.set(hotspot.file, {
+                file: hotspot.file,
+                change_count: hotspot.change_count,
+                patchset_count: hotspot.patchset_count,
+                lines_added: hotspot.lines_added,
+                lines_deleted: hotspot.lines_deleted,
+              });
+            }
+          },
+        );
 
       },
     );
@@ -808,90 +982,26 @@ metricsWithPeople.forEach(
       topStatuses,
       repositoryDetails,
       topCollaborators,
-    };
-  }, [developerMetrics]);
-
-  const fileHotspots = useMemo(() => {
-    const fileHotspotMap = new Map<
-      string,
-      {
-        file: string;
-        change_count: number;
-        patchset_count: number;
-        lines_added: number;
-        lines_deleted: number;
-      }
-    >();
-
-    Object.values(developerMetrics).forEach(
-      (metrics) => {
-        (metrics.file_hotspots ?? []).forEach(
-          (hotspot) => {
-            const existing =
-              fileHotspotMap.get(hotspot.file);
-
-            if (existing) {
-              existing.change_count +=
-                hotspot.change_count;
-
-              existing.patchset_count +=
-                hotspot.patchset_count;
-
-              existing.lines_added +=
-                hotspot.lines_added;
-
-              existing.lines_deleted +=
-                hotspot.lines_deleted;
-            } else {
-              fileHotspotMap.set(hotspot.file, {
-                file: hotspot.file,
-                change_count:
-                  hotspot.change_count,
-                patchset_count:
-                  hotspot.patchset_count,
-                lines_added:
-                  hotspot.lines_added,
-                lines_deleted:
-                  hotspot.lines_deleted,
-              });
-            }
-          },
-        );
-      },
-    );
-
-    return Array.from(fileHotspotMap.values()).sort(
-      (a, b) =>
-        b.change_count - a.change_count,
-    );
-  }, [developerMetrics]);
-
-  const developerRows = useMemo(
-    () =>
-      Object.entries(developerMetrics)
-        .map(([username, metrics]) => ({
-          username,
-          metrics,
-          ...buildMetricRow(metrics, snapshotDefinitions(projectMetricDefs)),
-        }))
-        .sort(
-          (a, b) =>
-            (Number(b.changeCount) ?? 0) -
-            (Number(a.changeCount) ?? 0),
-        ),
-    [developerMetrics],
-  );
-
-  const developerChartData = useMemo(
-    () =>
-      Object.entries(developerMetrics).map(
-        ([username, metrics]) => ({
-          name: username,
-          changes: metrics.change_count ?? 0,
-        }),
+      fileHotspots: Array.from(fileHotspotMap.values()).sort(
+        (a, b) => b.change_count - a.change_count,
       ),
-    [developerMetrics],
-  );
+      developerRows: developerRows.sort(
+        (a, b) =>
+          (Number(b.changeCount) ?? 0) -
+          (Number(a.changeCount) ?? 0),
+      ),
+      developerChartData,
+      repositoryNames: Array.from(repoNames).sort(),
+    };
+  }, [developerMetrics, interactionGraph]);
+
+  const repositoryOptions = useMemo(() => {
+    const fullProjects = projectsQuery.data?.projects ?? [];
+
+    return [...(fullProjects.length > 0
+      ? fullProjects
+      : projectMetrics.repositoryNames)].sort();
+  }, [projectsQuery.data, projectMetrics.repositoryNames]);
 
   const comparisonRows = useMemo(
     () =>
@@ -1163,9 +1273,9 @@ metricsWithPeople.forEach(
           ))}
         </Stack>
         <SectionCard title="Project status overview">
-          {projectOverview.topStatuses.length > 0 ? (
+          {projectMetrics.topStatuses.length > 0 ? (
             <Grid container spacing={2}>
-              {projectOverview.topStatuses.map(
+              {projectMetrics.topStatuses.map(
                 (statusItem) => (
                   <Grid
                     item
@@ -1229,7 +1339,7 @@ metricsWithPeople.forEach(
                 label: 'Lines deleted',
               },
             ]}
-            rows={fileHotspots.map((file) => ({
+            rows={projectMetrics.fileHotspots.map((file) => ({
               file: file.file,
               changeCount:
                 file.change_count,
@@ -1250,7 +1360,7 @@ metricsWithPeople.forEach(
               { key: 'username', label: 'Developer' },
               ...metricColumns(snapshotDefinitions(projectMetricDefs)),
             ]}
-            rows={developerRows.map(
+            rows={projectMetrics.developerRows.map(
               ({ username, metrics, ...row }) => ({
                 username: (
                   <Link
@@ -1271,7 +1381,7 @@ metricsWithPeople.forEach(
           />
         </SectionCard>
 
-        {developerRows.length > 0 && (
+        {projectMetrics.developerRows.length > 0 && (
           <SectionCard title="Detailed developer metrics">
             <MetricsTable
               maxHeight={400}
@@ -1279,7 +1389,7 @@ metricsWithPeople.forEach(
                 { key: 'username', label: 'Developer' },
                 ...metricColumns(projectMetricDetailDefs),
               ]}
-              rows={developerRows.map(
+              rows={projectMetrics.developerRows.map(
                 ({ username, metrics }) => ({
                   username,
                   ...buildMetricRow(
@@ -1358,7 +1468,7 @@ metricsWithPeople.forEach(
             height={320}
           >
             <BarChart
-              data={developerChartData}
+              data={projectMetrics.developerChartData}
               margin={{
                 left: 0,
                 top: 20,
@@ -1396,7 +1506,7 @@ metricsWithPeople.forEach(
             }}
           >
           <SectionCard title="Repository activity" sx={{ height: '100%' }}>
-          {projectOverview.repositoryDetails.length ? (
+          {projectMetrics.repositoryDetails.length ? (
             <Box
               sx={{
                 height: 420,
@@ -1405,7 +1515,7 @@ metricsWithPeople.forEach(
               }}
             >
               <Stack spacing={2}>
-                {projectOverview.repositoryDetails.map(
+                {projectMetrics.repositoryDetails.map(
                   (row) => {
                     const total =
                       row.total ?? 0;
@@ -1635,6 +1745,7 @@ metricsWithPeople.forEach(
           <RelationshipGraph
             title="Project collaboration network"
             subtitle="Developers connected by shared review and comment interactions."
+            directionNote="Each direction shows what the source developer sent to the target developer; the reverse direction is the target developer&apos;s sent activity."
             nodes={
               visibleProjectGraph.nodes
             }
@@ -1659,11 +1770,12 @@ metricsWithPeople.forEach(
           />
         </SectionCard>
 
-        {projectOverview.topCollaborators.length > 0 ? (
-          <SectionCard title="Reviewer/commenter relationships">
+        {projectMetrics.topCollaborators.length > 0 ? (
+          <SectionCard title="Collaboration Table">
             <RelationshipTable
-              rows={projectOverview.topCollaborators}
+              rows={projectMetrics.topCollaborators}
               maxHeight={360}
+              perspective="project"
             />
           </SectionCard>
         ) : null}

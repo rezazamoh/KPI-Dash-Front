@@ -1391,15 +1391,18 @@ const collaborationRows = useMemo(() => {
                 reducedGraph.edges.length,
                 10,
               )} relationships`}
+              directionNote={`This graph is centered on ${developerName}: each direction shows activity sent by one developer to the other.`}
               centerNodeId={developerName}
             />
           )}
         </SectionCard>
 
-      <SectionCard title="Collaboration details">
+      <SectionCard title="Collaboration Table">
           <RelationshipTable
             rows={collaborationRows}
             maxHeight={360}
+            perspective="developer"
+            focalPerson={developerName}
           />
         <Grid container spacing={3} alignItems="stretch">
           <Grid
@@ -1407,7 +1410,7 @@ const collaborationRows = useMemo(() => {
             xs={12}
             md={6}
           >
-            <SectionCard title="Review request summary" sx={{ height: '100%' }}>
+            <SectionCard title="Reviews recieved summary" sx={{ height: '100%' }}>
               {!reviewRequestsReceivedSummary ? (
                 <Typography color="text.secondary">
                   No review request metrics available for
@@ -1444,7 +1447,7 @@ const collaborationRows = useMemo(() => {
             xs={12}
             md={6}
           >
-            <SectionCard title="Comment summary" sx={{ height: '100%' }}>
+            <SectionCard title="Comment recieved summary" sx={{ height: '100%' }}>
               {!commentsReceivedSummary ? (
                 <Typography color="text.secondary">
                   No comment metrics available for this

@@ -7,6 +7,7 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  IconButton,
   Paper,
   Stack,
   ToggleButton,
@@ -14,17 +15,24 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import {
+  CenterFocusStrong,
+  ZoomIn,
+  ZoomOut,
+} from '@mui/icons-material';
 import { Link as RouterLink } from 'react-router-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { GraphEdge, GraphNode } from '@/utils/relationshipGraph';
 
 type GraphInteractionMode = 'reviews' | 'comments' | 'combined';
+type GraphLayoutMode = 'circle' | 'previous';
 
 interface RelationshipGraphProps {
   nodes: GraphNode[];
   edges: GraphEdge[];
   title: string;
   subtitle?: string;
+  directionNote?: string;
   centerNodeId?: string;
   nodeLinkHref?: (node: GraphNode) => string;
   interactionMode?: GraphInteractionMode;
@@ -78,6 +86,7 @@ const buildForceLayout = (
   visibleNodes: GraphNode[],
   visibleEdges: GraphEdge[],
   centeredId?: string,
+  layoutMode: GraphLayoutMode = 'circle',
 ): Record<string, GraphPoint> => {
   const positions: Record<string, GraphPoint> = {};
 
@@ -129,27 +138,35 @@ const buildForceLayout = (
     return positions;
   }
 
-  const desiredRing = Math.min(
-    220,
-    90 + nonFocusNodes.length * 16,
+  const minimumNodeSpacing = 86;
+  const minimumRingRadius = 120;
+  const desiredRing = Math.max(
+    minimumRingRadius,
+    (nonFocusNodes.length * minimumNodeSpacing) /
+      (Math.PI * 2),
   );
 
   nonFocusNodes.forEach(
     (node, index) => {
       const angle =
-        (index / nonFocusNodes.length) *
-          Math.PI *
-          2 +
-        (index % 2 === 0
-          ? 0.25
-          : -0.25);
+        layoutMode === 'circle'
+          ? (index / nonFocusNodes.length) *
+              Math.PI *
+              2 -
+            Math.PI / 2
+          : (index / nonFocusNodes.length) *
+              Math.PI *
+              2 +
+            (index % 2 === 0 ? 0.25 : -0.25);
 
       const radius =
-        desiredRing +
-        (index % 4) * 18 +
-        (node.activity
-          ? Math.min(node.activity, 20) * 0.5
-          : 0);
+        layoutMode === 'circle'
+          ? desiredRing
+          : Math.min(220, 90 + nonFocusNodes.length * 16) +
+            (index % 4) * 18 +
+            (node.activity
+              ? Math.min(node.activity, 20) * 0.5
+              : 0);
 
       positions[node.id] = {
         x: Math.cos(angle) * radius,
@@ -257,11 +274,11 @@ const getNodeActivity = (
 const getActivityLabel = (mode: GraphInteractionMode) => {
   switch (mode) {
     case 'reviews':
-      return 'Review activity';
+      return 'Reviews sent';
     case 'comments':
-      return 'Comment activity';
+      return 'Comments sent';
     default:
-      return 'Activity';
+      return 'Reviews + comments sent';
   }
 };
 
@@ -272,12 +289,16 @@ const RelationshipGraph: React.FC<
   edges,
   title,
   subtitle,
+  directionNote,
   centerNodeId,
   nodeLinkHref,
   interactionMode = 'combined',
 }) => {
   const [activeInteractionMode, setActiveInteractionMode] =
     useState<GraphInteractionMode>(interactionMode);
+
+  const [layoutMode, setLayoutMode] =
+    useState<GraphLayoutMode>('circle');
 
   const [
     selectedNodeId,
@@ -535,9 +556,12 @@ const RelationshipGraph: React.FC<
       studyEdges,
       centerNodeId ??
         studyNodes[0]?.id,
+      layoutMode,
     );
   }, [
     centerNodeId,
+    filteredEdges,
+    layoutMode,
     nodes,
     visibleGraph,
   ]);
@@ -609,11 +633,9 @@ const RelationshipGraph: React.FC<
 
     const fitZoom = clamp(
       Math.min(
-        (VIEWBOX_WIDTH -
-          GRAPH_VIEW_MARGIN) /
+        (VIEWBOX_WIDTH - GRAPH_VIEW_MARGIN) /
           contentWidth,
-        (VIEWBOX_HEIGHT -
-          GRAPH_VIEW_MARGIN) /
+        (VIEWBOX_HEIGHT - GRAPH_VIEW_MARGIN) /
           contentHeight,
       ),
       0.7,
@@ -671,10 +693,9 @@ const RelationshipGraph: React.FC<
   const handleSvgMouseDown = (
     event: React.MouseEvent<SVGSVGElement>,
   ) => {
-    if (
-      event.target !==
-      event.currentTarget
-    ) {
+    const target = event.target as Element;
+
+    if (!target.closest('[data-graph-surface]')) {
       return;
     }
 
@@ -791,6 +812,16 @@ const RelationshipGraph: React.FC<
                 {subtitle}
               </Typography>
             ) : null}
+
+            {directionNote ? (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: 'block', mt: 0.5 }}
+              >
+                {directionNote}
+              </Typography>
+            ) : null}
           </Box>
 
           <ToggleButtonGroup
@@ -804,10 +835,68 @@ const RelationshipGraph: React.FC<
             }}
             color="primary"
           >
-            <ToggleButton value="combined">Both</ToggleButton>
-            <ToggleButton value="reviews">Reviews</ToggleButton>
-            <ToggleButton value="comments">Comments</ToggleButton>
+            <ToggleButton value="combined">All sent</ToggleButton>
+            <ToggleButton value="reviews">Reviews sent</ToggleButton>
+            <ToggleButton value="comments">Comments sent</ToggleButton>
           </ToggleButtonGroup>
+
+          <ToggleButtonGroup
+            size="small"
+            exclusive
+            value={layoutMode}
+            onChange={(_, next) => {
+              if (next) {
+                setLayoutMode(next as GraphLayoutMode);
+              }
+            }}
+            color="secondary"
+          >
+            <ToggleButton value="circle">Circle</ToggleButton>
+            <ToggleButton value="previous">Organic</ToggleButton>
+          </ToggleButtonGroup>
+
+          <Stack direction="row" spacing={0.5}>
+            <Tooltip title="Zoom out">
+              <IconButton
+                size="small"
+                aria-label="Zoom out"
+                onClick={() =>
+                  setZoom((previous) =>
+                    clamp(previous - 0.1, 0.35, 2.2),
+                  )
+                }
+              >
+                <ZoomOut />
+              </IconButton>
+            </Tooltip>
+
+            <Tooltip title="Reset graph view">
+              <IconButton
+                size="small"
+                aria-label="Reset graph view"
+                onClick={() => {
+                  setZoom(1);
+                  setPan({ x: 0, y: 0 });
+                }}
+              >
+                <CenterFocusStrong />
+              </IconButton>
+            </Tooltip>
+
+            <Tooltip title="Zoom in">
+              <IconButton
+                size="small"
+                aria-label="Zoom in"
+                onClick={() =>
+                  setZoom((previous) =>
+                    clamp(previous + 0.1, 0.35, 2.2),
+                  )
+                }
+              >
+                <ZoomIn />
+              </IconButton>
+            </Tooltip>
+          </Stack>
         </Stack>
 
         <Box
@@ -816,8 +905,6 @@ const RelationshipGraph: React.FC<
               '1px solid rgba(255,255,255,0.14)',
             borderRadius: 2,
             overflow: 'hidden',
-            bgcolor:
-              'rgba(10,16,36,0.95)',
             display: 'flex',
           }}
         >
@@ -937,7 +1024,21 @@ const RelationshipGraph: React.FC<
             </List>
           </Box>
 
-          <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Box
+            sx={{
+              flex: 1,
+              minWidth: 0,
+              backgroundColor: 'rgba(9,12,24,0.98)',
+              backgroundImage: `
+                linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.045) 1px, transparent 1px),
+                linear-gradient(135deg, rgba(17,23,38,0.95), rgba(9,12,24,0.98))
+              `,
+              backgroundSize: '32px 32px, 32px 32px, 100% 100%',
+              backgroundPosition: '0 0, 0 0, 0 0',
+            }}
+            data-graph-surface="true"
+          >
             <svg
               ref={svgRef}
               width="100%"
@@ -1060,24 +1161,6 @@ const RelationshipGraph: React.FC<
                 />
               </marker>
             </defs>
-
-            <rect
-              x="-320"
-              y="-180"
-              width="640"
-              height="360"
-              rx="28"
-              fill="url(#graphBackground)"
-            />
-
-            <rect
-              x="-320"
-              y="-180"
-              width="640"
-              height="360"
-              rx="28"
-              fill="url(#graphGrid)"
-            />
 
             <g
               transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}
@@ -1204,20 +1287,32 @@ const RelationshipGraph: React.FC<
 
                             <Typography variant="body2">
                               {activeInteractionMode === 'reviews'
-                                ? 'Review interactions'
+                                ? 'Reviews sent across pair'
                                 : activeInteractionMode === 'comments'
-                                  ? 'Comment interactions'
-                                  : 'Total interactions'}
+                                  ? 'Comments sent across pair'
+                                  : 'All interactions sent across pair'}
                               : {getEdgeWeight(edge, activeInteractionMode)}
                             </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                              Each endpoint&apos;s sent value is that developer&apos;s activity toward the other endpoint.
+                            </Typography>
 
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                              {edge.source} → {edge.target}: {getEdgeMetricValue(edge, activeInteractionMode, true)}
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                              {edge.source} sent reviews: {edge.sourceReviewCount}
                             </Typography>
 
                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                              {edge.target} → {edge.source}: {getEdgeMetricValue(edge, activeInteractionMode, false)}
+                              {edge.source} sent comments: {edge.sourceCommentCount}
                             </Typography>
+
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                              {edge.target} sent reviews: {edge.targetReviewCount}
+                            </Typography>
+
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                              {edge.target} sent comments: {edge.targetCommentCount}
+                            </Typography>
+
                           </Box>
                         }
                         placement="top"
@@ -1371,7 +1466,7 @@ const RelationshipGraph: React.FC<
                       </text>
 
                       <Tooltip
-                        title={`${node.label} · ${node.activity} activity`}
+                        title={`${node.label} · ${node.activity} sent`}
                       >
                         <circle
                           r={

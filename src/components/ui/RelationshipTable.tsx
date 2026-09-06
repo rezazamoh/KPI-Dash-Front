@@ -87,11 +87,15 @@ export interface RelationshipRow {
 interface RelationshipTableProps {
   rows: RelationshipRow[];
   maxHeight?: number;
+  perspective?: 'developer' | 'project';
+  focalPerson?: string;
 }
 
 const RelationshipTable: React.FC<RelationshipTableProps> = ({
   rows,
   maxHeight,
+  perspective = 'project',
+  focalPerson,
 }) => {
   const [order, setOrder] = useState<SortOrder>('desc');
 
@@ -165,14 +169,21 @@ const RelationshipTable: React.FC<RelationshipTableProps> = ({
   }
 
   return (
-    <TableContainer
-      component={Paper}
-      sx={{
-        bgcolor: 'background.paper',
-        maxHeight: maxHeight ?? 400,
-      }}
-    >
-      <Table size="small">
+    <Stack spacing={1}>
+      <Typography variant="body2" color="text.secondary">
+        {perspective === 'developer'
+          ? `For ${focalPerson ?? 'this developer'}, sent means activity from the focal developer to the person in the row; received means activity from that person to the focal developer.`
+          : 'For each developer in the row, sent means activity they made toward other developers; received means activity they received from other developers.'}
+      </Typography>
+
+      <TableContainer
+        component={Paper}
+        sx={{
+          bgcolor: 'background.paper',
+          maxHeight: maxHeight ?? 400,
+        }}
+      >
+        <Table size="small">
         <TableHead>
           <TableRow>
             <TableCell sx={{ width: 48 }} />
@@ -197,7 +208,9 @@ const RelationshipTable: React.FC<RelationshipTableProps> = ({
                 }
                 onClick={() => handleSort('reviewSent')}
               >
-                Reviews sent
+                {perspective === 'developer'
+                  ? 'Reviews sent by focal dev'
+                  : 'Reviews sent'}
               </TableSortLabel>
             </TableCell>
 
@@ -209,7 +222,9 @@ const RelationshipTable: React.FC<RelationshipTableProps> = ({
                 }
                 onClick={() => handleSort('reviewReceived')}
               >
-                Reviews received
+                {perspective === 'developer'
+                  ? 'Reviews received from person'
+                  : 'Reviews received'}
               </TableSortLabel>
             </TableCell>
 
@@ -221,7 +236,9 @@ const RelationshipTable: React.FC<RelationshipTableProps> = ({
                 }
                 onClick={() => handleSort('commentsSent')}
               >
-                Comments sent
+                {perspective === 'developer'
+                  ? 'Comments sent by focal dev'
+                  : 'Comments sent'}
               </TableSortLabel>
             </TableCell>
 
@@ -233,7 +250,9 @@ const RelationshipTable: React.FC<RelationshipTableProps> = ({
                 }
                 onClick={() => handleSort('commentsReceived')}
               >
-                Comments received
+                {perspective === 'developer'
+                  ? 'Comments received from person'
+                  : 'Comments received'}
               </TableSortLabel>
             </TableCell>
 
@@ -261,6 +280,7 @@ const RelationshipTable: React.FC<RelationshipTableProps> = ({
                 key={row.username}
                 row={row}
                 isExpanded={isExpanded}
+                perspective={perspective}
                 onToggle={() =>
                   toggleExpanded(row.username)
                 }
@@ -268,8 +288,9 @@ const RelationshipTable: React.FC<RelationshipTableProps> = ({
             );
           })}
         </TableBody>
-      </Table>
-    </TableContainer>
+        </Table>
+      </TableContainer>
+    </Stack>
   );
 };
 
@@ -485,35 +506,34 @@ const ReviewBreakdown: React.FC<ReviewBreakdownProps> = ({
 };
 
 const RelationshipBreakdown: React.FC<{
+  row: RelationshipRow;
   breakdowns: RelationshipRow['breakdowns'];
-}> = ({ breakdowns }) => {
+  perspective: 'developer' | 'project';
+}> = ({ row, breakdowns, perspective }) => {
+  const sentSuffix =
+    perspective === 'developer' ? ' to person' : '';
+  const receivedSuffix =
+    perspective === 'developer' ? ' from person' : '';
+
   const sections = [
     {
       key: 'reviewSent',
-      label: 'Reviews sent',
+      label: `Reviews sent${sentSuffix}`,
       breakdown: breakdowns.reviewSent,
+      count: row.reviewSent,
     },
     {
       key: 'reviewReceived',
-      label: 'Reviews received',
+      label: `Reviews received${receivedSuffix}`,
       breakdown: breakdowns.reviewReceived,
-    },
-    {
-      key: 'commentsSent',
-      label: 'Comments sent',
-      breakdown: breakdowns.commentsSent,
-    },
-    {
-      key: 'commentsReceived',
-      label: 'Comments received',
-      breakdown: breakdowns.commentsReceived,
+      count: row.reviewReceived,
     },
   ] as const;
 
   const availableSections = sections.filter(
-    ({ breakdown }) =>
-      breakdown &&
-      Object.keys(breakdown).length > 0,
+    ({ breakdown, count }) =>
+      count > 0 ||
+      (breakdown && Object.keys(breakdown).length > 0),
   );
 
   if (!availableSections.length) {
@@ -540,7 +560,7 @@ const RelationshipBreakdown: React.FC<{
 
       <Stack spacing={3}>
         {availableSections.map(
-          ({ key, label, breakdown }) => (
+          ({ key, label, breakdown, count }) => (
             <Box key={key}>
               <Typography
                 variant="body2"
@@ -550,9 +570,11 @@ const RelationshipBreakdown: React.FC<{
                 {label}
               </Typography>
 
-              <ReviewBreakdown
-                breakdown={breakdown!}
-              />
+              {breakdown && Object.keys(breakdown).length > 0 ? (
+                <ReviewBreakdown
+                  breakdown={breakdown}
+                />
+              ) : null}
             </Box>
           ),
         )}
@@ -565,6 +587,7 @@ interface RelationshipRowsProps {
   row: RelationshipRow;
   isExpanded: boolean;
   onToggle: () => void;
+  perspective: 'developer' | 'project';
 }
 
 const RelationshipRows: React.FC<
@@ -573,13 +596,13 @@ const RelationshipRows: React.FC<
   row,
   isExpanded,
   onToggle,
+  perspective,
 }) => {
   const hasBreakdown =
-    Object.values(row.breakdowns).some(
-      (breakdown) =>
-        breakdown &&
-        Object.keys(breakdown).length > 0,
-    );
+    row.reviewSent > 0 ||
+    row.reviewReceived > 0 ||
+    Boolean(row.breakdowns.reviewSent) ||
+    Boolean(row.breakdowns.reviewReceived);
 
   return (
     <>
@@ -637,7 +660,9 @@ const RelationshipRows: React.FC<
             unmountOnExit
           >
             <RelationshipBreakdown
+              row={row}
               breakdowns={row.breakdowns}
+              perspective={perspective}
             />
           </Collapse>
         </TableCell>

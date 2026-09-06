@@ -162,4 +162,68 @@ export const developerMetrics: readonly MetricDefinition<DeveloperSnapshotMetric
         formatPercent(value as number | null, 2),
     },
   },
+  {
+    key: 'reviewRequestsSent',
+    label: 'Reviews sent',
+    value: (metrics) =>
+      metrics.review_requests_sent?.people.reduce(
+        (sum, person) => sum + person.count,
+        0,
+      ) ?? 0,
+    comparison: {
+      label: 'Sent',
+      color: '#2196f3',
+      chart: true,
+      chartGroup: 'Reviews',
+      format: (value) => String(value ?? 0),
+    },
+  },
+  {
+    key: 'reviewRequestsReceived',
+    label: 'Reviews received',
+    value: (metrics) =>
+      metrics.review_requests_received?.people.reduce(
+        (sum, person) => sum + person.count,
+        0,
+      ) ?? 0,
+    comparison: {
+      label: 'Received',
+      color: '#90caf9',
+      chart: true,
+      chartGroup: 'Reviews',
+      format: (value) => String(value ?? 0),
+    },
+  },
+  {
+    key: 'commentsSent',
+    label: 'Comments sent',
+    value: (metrics) =>
+      metrics.comments_sent?.people.reduce(
+        (sum, person) => sum + person.count,
+        0,
+      ) ?? 0,
+    comparison: {
+      label: 'Sent',
+      color: '#4caf50',
+      chart: true,
+      chartGroup: 'Comments',
+      format: (value) => String(value ?? 0),
+    },
+  },
+  {
+    key: 'commentsReceived',
+    label: 'Comments received',
+    value: (metrics) =>
+      metrics.comments_received?.people.reduce(
+        (sum, person) => sum + person.count,
+        0,
+      ) ?? 0,
+    comparison: {
+      label: 'Received',
+      color: '#a5d6a7',
+      chart: true,
+      chartGroup: 'Comments',
+      format: (value) => String(value ?? 0),
+    },
+  },
 ];
