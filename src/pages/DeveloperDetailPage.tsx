@@ -117,6 +117,90 @@ const buildPeopleSummary = (
   };
 };
 
+type DurationPoint = {
+  duration: number;
+  url?: string;
+};
+
+const DurationStatBox: React.FC<{
+  title: string;
+  mean?: number;
+  min?: DurationPoint;
+  max?: DurationPoint;
+}> = ({ title, mean, min, max }) => {
+  const renderEndpoint = (
+    label: string,
+    point?: DurationPoint,
+  ) => (
+    <Typography variant="body2" color="text.secondary">
+      {label}:{' '}
+      {point?.url ? (
+        <Link
+          href={point.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          underline="hover"
+        >
+          {formatDuration(point.duration)}
+        </Link>
+      ) : (
+        formatDuration(point?.duration)
+      )}
+    </Typography>
+  );
+
+  return (
+    <Box
+      sx={{
+        p: 2,
+        borderRadius: 2,
+        border: '1px solid rgba(255,255,255,0.08)',
+      }}
+    >
+      <Typography variant="subtitle2">{title}</Typography>
+
+      <Typography variant="h5" sx={{ mt: 1 }}>
+        {formatDuration(mean)}
+      </Typography>
+
+      {min && max && (
+        <Stack spacing={0.5} sx={{ mt: 1 }}>
+          {renderEndpoint('Fastest', min)}
+          {renderEndpoint('Slowest', max)}
+        </Stack>
+      )}
+    </Box>
+  );
+};
+
+type PeopleSummary = ReturnType<typeof buildPeopleSummary>;
+
+/**
+ * Renders the "Most / Average" summary card used for both the
+ * review-requests-received and comments-received sections.
+ */
+const PeopleSummaryCard: React.FC<{
+  title: string;
+  summary: PeopleSummary;
+  emptyMessage: string;
+}> = ({ title, summary, emptyMessage }) => (
+  <SectionCard title={title} sx={{ height: '100%' }}>
+    {!summary ? (
+      <Typography color="text.secondary">{emptyMessage}</Typography>
+    ) : (
+      <Stack spacing={1}>
+        <Typography>
+          Most: {summary.most.username} · {summary.most.count}
+        </Typography>
+
+        <Typography color="text.secondary">
+          Average: {summary.average?.toFixed(1) ?? '—'}
+        </Typography>
+      </Stack>
+    )}
+  </SectionCard>
+);
+
 const DEFAULT_STATUS_FILTER = ['NEW', 'ABANDONED', 'MERGED'];
 
 const DeveloperDetailPage: React.FC = () => {
@@ -396,73 +480,74 @@ const DeveloperDetailPage: React.FC = () => {
     return Array.from(peerSet).sort();
   }, [metrics]);
 
-const collaborationRows = useMemo(() => {
-  return collaborationPeers
-    .map((peer) => {
-      const sentReview =
-        metrics?.review_requests_sent?.people.find(
-          (item) => item.username === peer,
-        );
+  const collaborationRows = useMemo(() => {
+    return collaborationPeers
+      .map((peer) => {
+        const sentReview =
+          metrics?.review_requests_sent?.people.find(
+            (item) => item.username === peer,
+          );
 
-      const receivedReview =
-        metrics?.review_requests_received?.people.find(
-          (item) => item.username === peer,
-        );
+        const receivedReview =
+          metrics?.review_requests_received?.people.find(
+            (item) => item.username === peer,
+          );
 
-      const sentComments =
-        metrics?.comments_sent?.people.find(
-          (item) => item.username === peer,
-        );
+        const sentComments =
+          metrics?.comments_sent?.people.find(
+            (item) => item.username === peer,
+          );
 
-      const receivedComments =
-        metrics?.comments_received?.people.find(
-          (item) => item.username === peer,
-        );
+        const receivedComments =
+          metrics?.comments_received?.people.find(
+            (item) => item.username === peer,
+          );
 
-      const reviewSent =
-        sentReview?.count ?? 0;
+        const reviewSent =
+          sentReview?.count ?? 0;
 
-      const reviewReceived =
-        receivedReview?.count ?? 0;
+        const reviewReceived =
+          receivedReview?.count ?? 0;
 
-      const commentsSent =
-        sentComments?.count ?? 0;
+        const commentsSent =
+          sentComments?.count ?? 0;
 
-      const commentsReceived =
-        receivedComments?.count ?? 0;
+        const commentsReceived =
+          receivedComments?.count ?? 0;
 
-      return {
-        username: peer,
+        return {
+          username: peer,
 
-        reviewSent,
-        reviewReceived,
-        commentsSent,
-        commentsReceived,
-
-        total:
-          reviewSent +
-          reviewReceived +
-          commentsSent +
+          reviewSent,
+          reviewReceived,
+          commentsSent,
           commentsReceived,
 
-        breakdowns: {
-          reviewSent: normalizeLabelStats(
-            sentReview?.by_label,
-          ),
-          reviewReceived: normalizeLabelStats(
-            receivedReview?.by_label,
-          ),
-          commentsSent: normalizeLabelStats(
-            sentComments?.by_label,
-          ),
-          commentsReceived: normalizeLabelStats(
-            receivedComments?.by_label,
-          ),
-        },
-      };
-    })
-    .sort((a, b) => b.total - a.total);
-}, [collaborationPeers, metrics]);
+          total:
+            reviewSent +
+            reviewReceived +
+            commentsSent +
+            commentsReceived,
+
+          breakdowns: {
+            reviewSent: normalizeLabelStats(
+              sentReview?.by_label,
+            ),
+            reviewReceived: normalizeLabelStats(
+              receivedReview?.by_label,
+            ),
+            commentsSent: normalizeLabelStats(
+              sentComments?.by_label,
+            ),
+            commentsReceived: normalizeLabelStats(
+              receivedComments?.by_label,
+            ),
+          },
+        };
+      })
+      .sort((a, b) => b.total - a.total);
+  }, [collaborationPeers, metrics]);
+
   const totalRepositories = useMemo(() => {
     const repoSet = new Set<string>();
 
@@ -777,34 +862,11 @@ const collaborationRows = useMemo(() => {
 
           onLiveChange={setDraftLive}
 
-          onApplyFilters={() => {
-            setSelectedRepositories([...draftRepositories]);
-            setSelectedTopics([...draftTopics]);
-            setSelectedStatus([...draftStatus]);
-            setPeriods([...draftPeriods]);
-            setLive(draftLive);
-            setSelectedPeriodIndex(0);
-          }}
+          onApplyFilters={handleApplyFilters}
 
           onTopicMenuOpenChange={setTopicMenuOpen}
 
-          onResetFilters={() => {
-            const defaultLive = getDefaultLiveValue();
-
-            setDraftRepositories([]);
-            setDraftTopics([]);
-            setDraftStatus([...DEFAULT_STATUS_FILTER]);
-            setDraftPeriods([]);
-            setDraftLive(defaultLive);
-
-            setSelectedRepositories([]);
-            setSelectedTopics([]);
-            setSelectedStatus([...DEFAULT_STATUS_FILTER]);
-            setPeriods([]);
-            setLive(defaultLive);
-
-            setSelectedPeriodIndex(0);
-          }}
+          onResetFilters={handleResetFilters}
         />
         {!hasAnyActivity && (
           <Alert severity="info">
@@ -1098,115 +1160,19 @@ const collaborationRows = useMemo(() => {
                     xs={12}
                     sm={6}
                   >
-                    <Box
-                      sx={{
-                        p: 2,
-                        borderRadius: 2,
-                        border:
-                          '1px solid rgba(255,255,255,0.08)',
-                      }}
-                    >
-                      <Typography variant="subtitle2">
-                        Lead time
-                      </Typography>
-
-                      <Typography
-                        variant="h5"
-                        sx={{ mt: 1 }}
-                      >
-                        {formatDuration(metrics.lead_time?.mean)}
-                      </Typography>
-
-                      {metrics.lead_time && (
-                        <Stack spacing={0.5} sx={{ mt: 1 }}>
-                          <Typography variant="body2" color="text.secondary">
-                            Fastest:{' '}
-                            {metrics.lead_time.min.url ? (
-                              <Link
-                                href={metrics.lead_time.min.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                underline="hover"
-                              >
-                                {formatDuration(metrics.lead_time.min.duration)}
-                              </Link>
-                            ) : (
-                              formatDuration(metrics.lead_time.min.duration)
-                            )}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            Slowest:{' '}
-                            {metrics.lead_time.max.url ? (
-                              <Link
-                                href={metrics.lead_time.max.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                underline="hover"
-                              >
-                                {formatDuration(metrics.lead_time.max.duration)}
-                              </Link>
-                            ) : (
-                              formatDuration(metrics.lead_time.max.duration)
-                            )}
-                          </Typography>
-                        </Stack>
-                      )}
-                      
-                    </Box>
-                    <Box
-                      sx={{
-                        p: 2,
-                        borderRadius: 2,
-                        border:
-                          '1px solid rgba(255,255,255,0.08)',
-                      }}
-                    >
-                      <Typography variant="subtitle2">
-                        Patchset gap time
-                      </Typography>
-
-                      <Typography
-                        variant="h5"
-                        sx={{ mt: 1 }}
-                      >
-                        {formatDuration(metrics.patchset_gap_time?.mean)}
-                      </Typography>
-
-                      {metrics.patchset_gap_time && (
-                        <Stack spacing={0.5} sx={{ mt: 1 }}>
-                          <Typography variant="body2" color="text.secondary">
-                            Fastest:{' '}
-                            {metrics.patchset_gap_time.min.url ? (
-                              <Link
-                                href={metrics.patchset_gap_time.min.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                underline="hover"
-                              >
-                                {formatDuration(metrics.patchset_gap_time.min.duration)}
-                              </Link>
-                            ) : (
-                              formatDuration(metrics.patchset_gap_time.min.duration)
-                            )}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            Slowest:{' '}
-                            {metrics.patchset_gap_time.max.url ? (
-                              <Link
-                                href={metrics.patchset_gap_time.max.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                underline="hover"
-                              >
-                                {formatDuration(metrics.patchset_gap_time.max.duration)}
-                              </Link>
-                            ) : (
-                              formatDuration(metrics.patchset_gap_time.max.duration)
-                            )}
-                          </Typography>
-                        </Stack>
-                      )}
-                      
+                    <DurationStatBox
+                      title="Lead time"
+                      mean={metrics.lead_time?.mean}
+                      min={metrics.lead_time?.min}
+                      max={metrics.lead_time?.max}
+                    />
+                    <Box sx={{ mt: 2 }}>
+                      <DurationStatBox
+                        title="Patchset gap time"
+                        mean={metrics.patchset_gap_time?.mean}
+                        min={metrics.patchset_gap_time?.min}
+                        max={metrics.patchset_gap_time?.max}
+                      />
                     </Box>
                   </Grid>
 
@@ -1410,36 +1376,11 @@ const collaborationRows = useMemo(() => {
             xs={12}
             md={6}
           >
-            <SectionCard title="Reviews recieved summary" sx={{ height: '100%' }}>
-              {!reviewRequestsReceivedSummary ? (
-                <Typography color="text.secondary">
-                  No review request metrics available for
-                  this scope.
-                </Typography>
-              ) : (
-                <Stack spacing={1}>
-                  <Typography>
-                    Most:{' '}
-                    {
-                      reviewRequestsReceivedSummary
-                        .most.username
-                    }{' '}
-                    ·{' '}
-                    {
-                      reviewRequestsReceivedSummary
-                        .most.count
-                    }
-                  </Typography>
-
-                  <Typography color="text.secondary">
-                    Average:{' '}
-                    {reviewRequestsReceivedSummary.average?.toFixed(
-                      1,
-                    ) ?? '—'}
-                  </Typography>
-                </Stack>
-              )}
-            </SectionCard>
+            <PeopleSummaryCard
+              title="Reviews received summary"
+              summary={reviewRequestsReceivedSummary}
+              emptyMessage="No review request metrics available for this scope."
+            />
           </Grid>
 
           <Grid
@@ -1447,36 +1388,11 @@ const collaborationRows = useMemo(() => {
             xs={12}
             md={6}
           >
-            <SectionCard title="Comment recieved summary" sx={{ height: '100%' }}>
-              {!commentsReceivedSummary ? (
-                <Typography color="text.secondary">
-                  No comment metrics available for this
-                  scope.
-                </Typography>
-              ) : (
-                <Stack spacing={1}>
-                  <Typography>
-                    Most:{' '}
-                    {
-                      commentsReceivedSummary
-                        .most.username
-                    }{' '}
-                    ·{' '}
-                    {
-                      commentsReceivedSummary
-                        .most.count
-                    }
-                  </Typography>
-
-                  <Typography color="text.secondary">
-                    Average:{' '}
-                    {commentsReceivedSummary.average?.toFixed(
-                      1,
-                    ) ?? '—'}
-                  </Typography>
-                </Stack>
-              )}
-            </SectionCard>
+            <PeopleSummaryCard
+              title="Comment received summary"
+              summary={commentsReceivedSummary}
+              emptyMessage="No comment metrics available for this scope."
+            />
           </Grid>
         </Grid>
         </SectionCard>
