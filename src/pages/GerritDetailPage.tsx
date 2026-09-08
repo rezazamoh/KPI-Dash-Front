@@ -830,19 +830,19 @@ const ProjectDetailPage: React.FC = () => {
 
         const metricsWithPeople = [
           {
-            metric: metrics.review_requests_received,
+            metric: metrics.review_requests_sent,
             breakdown: 'reviewSent' as const,
           },
           {
-            metric: metrics.review_requests_sent,
+            metric: metrics.review_requests_received,
             breakdown: 'reviewReceived' as const,
           },
           {
-            metric: metrics.comments_received,
+            metric: metrics.comments_sent,
             breakdown: 'commentsSent' as const,
           },
           {
-            metric: metrics.comments_sent,
+            metric: metrics.comments_received,
             breakdown: 'commentsReceived' as const,
           },
         ];
@@ -852,9 +852,9 @@ const ProjectDetailPage: React.FC = () => {
             metric?.people?.forEach((person) => {
               const existing: CollaboratorEntry =
                 collaboratorTotals.get(
-                  person.username,
+                  developer,
                 ) ?? {
-                  username: person.username,
+                  username: developer,
                   reviewSent: 0,
                   reviewReceived: 0,
                   commentsSent: 0,
@@ -888,7 +888,7 @@ const ProjectDetailPage: React.FC = () => {
               }
 
               collaboratorTotals.set(
-                person.username,
+                developer,
                 existing,
               );
             });
