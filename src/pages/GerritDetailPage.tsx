@@ -1,16 +1,4 @@
-import {
-  Autocomplete,
-  Box,
-  Chip,
-  Button,
-  Paper,
-  Collapse,
-  Grid,
-  Link,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material';
+import {Autocomplete, Box,Chip, Button,Paper, Collapse, Grid, Link, Stack, TextField, Typography,} from '@mui/material';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink, useLocation, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -26,10 +14,7 @@ import { GapDistributionChart } from '@/components/ui/GapDistributionChart';
 import RelationshipGraph from '@/components/ui/RelationshipGraph';
 import { mergeLabelStats } from '@/components/ui/RelationshipTable';
 import RelationshipTable from '@/components/ui/RelationshipTable';
-import type {
-  LabelStats,
-  VoteStats,
-} from '@/components/ui/RelationshipTable';
+import type { LabelStats, VoteStats,} from '@/components/ui/RelationshipTable';
 import MetricsTable from '@/components/ui/MetricsTable';
 import PeriodComparison from '@/components/ui/PeriodComparison';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -37,12 +22,7 @@ import { buildProjectRelationshipGraph } from '@/utils/relationshipGraph';
 import { formatPeriodLabel } from '@/utils/formatPeriodLabel';
 import { normalizePeriods } from '@/utils/periods';
 import { getDefaultLiveValue } from '@/utils/livePreference';
-import {
-  buildComparisonRows,
-  buildMetricRow,
-  snapshotDefinitions,
-  metricColumns,
-} from '@/metrics/types';
+import { buildComparisonRows, buildMetricRow, snapshotDefinitions, metricColumns } from '@/metrics/types';
 import { projectMetricDefs, projectMetricDetailDefs } from '@/metrics/projectMetrics';
 import { GapTimeStats, LeadTimeStats } from '@/types/metrics';
 import type { DeveloperCoreMetrics } from '@/types/metrics';
@@ -57,6 +37,7 @@ const statusPalette: Record<string, string> = {
 };
 
 const DEFAULT_STATUS_FILTER = ['NEW', 'ABANDONED', 'MERGED'];
+const DEVELOPER_SERIES_COLORS = ['#4fc3f7','#81c784','#ffb74d','#ba68c8','#f06292','#a1887f','#ffd54f','#64b5f6',];
 
 const aggregateDistributionBuckets = <T extends { distribution: Array<{ min: number; max: number | null; count: number; density: number | null; change_numbers?: number[]; change_patchsets?: Array<{ change_number: number; patchset_number: number }> }> }>(
   statsList: T[],
@@ -164,6 +145,21 @@ const aggregateDeveloperTimeStats = <T extends LeadTimeStats | GapTimeStats>(
 
   return aggregated;
 };
+
+const buildDeveloperTimeSeries = <T extends LeadTimeStats | GapTimeStats>(
+  developerMetrics: Record<string, { lead_time?: T | null; patchset_gap_time?: T | null }>,
+  names: string[],
+  field: 'lead_time' | 'patchset_gap_time',
+  keyPrefix: string,
+) =>
+  names
+    .map((name, index) => ({
+      key: `${keyPrefix}-${name}`,
+      name,
+      color: DEVELOPER_SERIES_COLORS[index % DEVELOPER_SERIES_COLORS.length],
+      stats: developerMetrics[name]?.[field] ?? null,
+    }))
+    .filter((entry) => entry.stats && entry.stats.distribution.length > 0);
 
 const toCount = (vote: number | VoteStats | undefined): number =>
   typeof vote === 'number'
@@ -351,6 +347,10 @@ const ProjectDetailPage: React.FC = () => {
 
   const isTeam = Boolean(team);
   const name = team ?? project ?? '';
+  const developerHref = (username: string) =>
+    isTeam
+      ? `/gerrit/developers/${encodeURIComponent(username)}`
+      : `/gerrit/developers/${encodeURIComponent(username)}?repo=${encodeURIComponent(name)}`;
 
   const [selectedDevelopers, setSelectedDevelopers] =
     useState<string[]>(developersFromQuery);
@@ -669,49 +669,27 @@ const ProjectDetailPage: React.FC = () => {
     [developerMetrics, activeTimeDistributionDevelopers],
   );
 
-  const selectedDeveloperTimeSeries = useMemo(() => {
-    const names = activeTimeDistributionDevelopers;
+  const selectedDeveloperTimeSeries = useMemo(
+    () =>
+      buildDeveloperTimeSeries(
+        developerMetrics,
+        activeTimeDistributionDevelopers,
+        'lead_time',
+        'developer',
+      ),
+    [developerMetrics, activeTimeDistributionDevelopers],
+  );
 
-    return names
-      .map((name, index) => ({
-        key: `developer-${name}`,
-        name,
-        color: [
-          '#4fc3f7',
-          '#81c784',
-          '#ffb74d',
-          '#ba68c8',
-          '#f06292',
-          '#a1887f',
-          '#ffd54f',
-          '#64b5f6',
-        ][index % 8],
-        stats: developerMetrics[name]?.lead_time ?? null,
-      }))
-      .filter((entry) => entry.stats && entry.stats.distribution.length > 0);
-  }, [developerMetrics, activeTimeDistributionDevelopers]);
-
-  const selectedPatchsetGapSeries = useMemo(() => {
-    const names = activeTimeDistributionDevelopers;
-
-    return names
-      .map((name, index) => ({
-        key: `patchset-${name}`,
-        name,
-        color: [
-          '#4fc3f7',
-          '#81c784',
-          '#ffb74d',
-          '#ba68c8',
-          '#f06292',
-          '#a1887f',
-          '#ffd54f',
-          '#64b5f6',
-        ][index % 8],
-        stats: developerMetrics[name]?.patchset_gap_time ?? null,
-      }))
-      .filter((entry) => entry.stats && entry.stats.distribution.length > 0);
-  }, [developerMetrics, activeTimeDistributionDevelopers]);
+  const selectedPatchsetGapSeries = useMemo(
+    () =>
+      buildDeveloperTimeSeries(
+        developerMetrics,
+        activeTimeDistributionDevelopers,
+        'patchset_gap_time',
+        'patchset',
+      ),
+    [developerMetrics, activeTimeDistributionDevelopers],
+  );
 
   const projectMetrics = useMemo(() => {
     const statusTotals = new Map<string, number>();
@@ -998,9 +976,11 @@ const ProjectDetailPage: React.FC = () => {
   const repositoryOptions = useMemo(() => {
     const fullProjects = projectsQuery.data?.projects ?? [];
 
-    return [...(fullProjects.length > 0
-      ? fullProjects
-      : projectMetrics.repositoryNames)].sort();
+    return (
+      fullProjects.length > 0
+        ? fullProjects.slice()
+        : projectMetrics.repositoryNames
+    ).sort();
   }, [projectsQuery.data, projectMetrics.repositoryNames]);
 
   const comparisonRows = useMemo(
@@ -1079,26 +1059,11 @@ const ProjectDetailPage: React.FC = () => {
   }
 
   const handleApplyFilters = () => {
-    setSelectedDevelopers([
-      ...draftDevelopers,
-    ]);
-
-    setSelectedRepositories([
-      ...draftRepositories,
-    ]);
-
-    setSelectedTopics([
-      ...draftTopics,
-    ]);
-
-    setSelectedStatus([
-      ...draftStatus,
-    ]);
-
-    setPeriods([
-      ...draftPeriods,
-    ]);
-
+    setSelectedDevelopers(draftDevelopers);
+    setSelectedRepositories(draftRepositories);
+    setSelectedTopics(draftTopics);
+    setSelectedStatus(draftStatus);
+    setPeriods(draftPeriods);
     setLive(draftLive);
     setSelectedPeriodIndex(0);
   };
@@ -1145,35 +1110,11 @@ const ProjectDetailPage: React.FC = () => {
           alignItems="center"
           flexWrap="wrap"
         >
-          <Chip
-            label={
-              filterSummary.activeDevelopers
-            }
-          />
-
-          <Chip
-            label={
-              filterSummary.activeRepositories
-            }
-          />
-
-          <Chip
-            label={
-              filterSummary.activeTopics
-            }
-          />
-
-          <Chip
-            label={
-              filterSummary.activeStatus
-            }
-          />
-
-          <Chip
-            label={
-              filterSummary.activePeriods
-            }
-          />
+          <Chip  label={filterSummary.activeDevelopers}/>
+          <Chip  label={filterSummary.activeRepositories}/>
+          <Chip  label={filterSummary.activeTopics}/>
+          <Chip  label={filterSummary.activeStatus}/>
+          <Chip  label={filterSummary.activePeriods}/>
         </Stack>
 
         <FilterBar
@@ -1365,11 +1306,7 @@ const ProjectDetailPage: React.FC = () => {
                 username: (
                   <Link
                     component={RouterLink}
-                    to={
-                      isTeam
-                        ? `/gerrit/developers/${encodeURIComponent(username)}`
-                        : `/gerrit/developers/${encodeURIComponent(username)}?repo=${encodeURIComponent(name)}`
-                    }
+                    to={developerHref(username)}
                     underline="hover"
                   >
                     {username}
@@ -1660,17 +1597,7 @@ const ProjectDetailPage: React.FC = () => {
                                         component={
                                           RouterLink
                                         }
-                                        to={
-                                          isTeam
-                                            ? `/gerrit/developers/${encodeURIComponent(
-                                                dev.developer,
-                                              )}`
-                                            : `/gerrit/developers/${encodeURIComponent(
-                                                dev.developer,
-                                              )}?repo=${encodeURIComponent(
-                                                name,
-                                              )}`
-                                        }
+                                        to={developerHref(dev.developer)}
                                         underline="hover"
                                       >
                                         {dev.developer}
@@ -1756,17 +1683,7 @@ const ProjectDetailPage: React.FC = () => {
               visibleProjectGraph.centerNodeId ??
               undefined
             }
-            nodeLinkHref={(node) =>
-              isTeam
-                ? `/gerrit/developers/${encodeURIComponent(
-                    node.id,
-                  )}`
-                : `/gerrit/developers/${encodeURIComponent(
-                    node.id,
-                  )}?repo=${encodeURIComponent(
-                    name,
-                  )}`
-            }
+            nodeLinkHref={(node) => developerHref(node.id)}
           />
         </SectionCard>
 
