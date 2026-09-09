@@ -446,7 +446,7 @@ const ReviewBreakdown: React.FC<ReviewBreakdownProps> = ({
         variant="subtitle2"
         sx={{ mb: 2 }}
       >
-        Review breakdown
+        Activity breakdown
       </Typography>
 
       <Stack spacing={2}>
@@ -528,6 +528,18 @@ const RelationshipBreakdown: React.FC<{
       breakdown: breakdowns.reviewReceived,
       count: row.reviewReceived,
     },
+    {
+      key: 'commentsSent',
+      label: `Comments sent${sentSuffix}`,
+      breakdown: breakdowns.commentsSent,
+      count: row.commentsSent,
+    },
+    {
+      key: 'commentsReceived',
+      label: `Comments received${receivedSuffix}`,
+      breakdown: breakdowns.commentsReceived,
+      count: row.commentsReceived,
+    },
   ] as const;
 
   const availableSections = sections.filter(
@@ -601,8 +613,12 @@ const RelationshipRows: React.FC<
   const hasBreakdown =
     row.reviewSent > 0 ||
     row.reviewReceived > 0 ||
+    row.commentsSent > 0 ||
+    row.commentsReceived > 0 ||
     Boolean(row.breakdowns.reviewSent) ||
-    Boolean(row.breakdowns.reviewReceived);
+    Boolean(row.breakdowns.reviewReceived) ||
+    Boolean(row.breakdowns.commentsSent) ||
+    Boolean(row.breakdowns.commentsReceived);
 
   return (
     <>

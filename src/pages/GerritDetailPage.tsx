@@ -12,9 +12,9 @@ import FilterBar from '@/components/ui/Filters/FilterBar';
 import ChartCard from '@/components/ui/ChartCard';
 import { GapDistributionChart } from '@/components/ui/GapDistributionChart';
 import RelationshipGraph from '@/components/ui/RelationshipGraph';
-import { mergeLabelStats } from '@/components/ui/RelationshipTable';
+import { mergeLabelStats, normalizeLabelStats } from '@/components/ui/RelationshipTable';
 import RelationshipTable from '@/components/ui/RelationshipTable';
-import type { LabelStats, VoteStats,} from '@/components/ui/RelationshipTable';
+import type { LabelStats } from '@/components/ui/RelationshipTable';
 import MetricsTable from '@/components/ui/MetricsTable';
 import PeriodComparison from '@/components/ui/PeriodComparison';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -160,65 +160,6 @@ const buildDeveloperTimeSeries = <T extends LeadTimeStats | GapTimeStats>(
       stats: developerMetrics[name]?.[field] ?? null,
     }))
     .filter((entry) => entry.stats && entry.stats.distribution.length > 0);
-
-const toCount = (vote: number | VoteStats | undefined): number =>
-  typeof vote === 'number'
-    ? vote
-    : Number(vote?.total ?? 0);
-
-const normalizeLabelStats = (
-  byLabel: Record<string, unknown>,
-): Record<string, LabelStats> => {
-  const normalized: Record<string, LabelStats> = {};
-
-  Object.entries(byLabel ?? {}).forEach(
-    ([label, raw]) => {
-      const entry = (raw ?? {}) as {
-        total?: number;
-        positive?: number;
-        negative?: number;
-        values?: Record<string, number | VoteStats>;
-      };
-
-      const values = entry.values ?? {};
-
-      const labelTotal =
-        entry.total ??
-        Object.values(values).reduce<number>(
-          (sum, vote) => sum + toCount(vote),
-          0,
-        );
-
-      const stats: LabelStats = {
-        total: labelTotal,
-        positive: entry.positive ?? 0,
-        negative: entry.negative ?? 0,
-        values: {},
-      };
-
-      Object.entries(values).forEach(
-        ([value, vote]) => {
-          const total = toCount(vote);
-
-          stats.values[value] = {
-            total,
-            rate: 0,
-            value_rate:
-              labelTotal > 0
-                ? Number(
-                    ((total / labelTotal) * 100).toFixed(2),
-                  )
-                : 0,
-          };
-        },
-      );
-
-      normalized[label] = stats;
-    },
-  );
-
-  return normalized;
-};
 
 interface CollaboratorEntry {
   username: string;
@@ -850,47 +791,70 @@ const ProjectDetailPage: React.FC = () => {
         metricsWithPeople.forEach(
           ({ metric, breakdown }) => {
             metric?.people?.forEach((person) => {
-              const existing: CollaboratorEntry =
-                collaboratorTotals.get(
-                  developer,
-                ) ?? {
-                  username: developer,
-                  reviewSent: 0,
-                  reviewReceived: 0,
-                  commentsSent: 0,
-                  commentsReceived: 0,
-                  total: 0,
-                  breakdowns: {},
-                };
-
               const personLabels = getProjectPersonLabels(
                 metric,
                 person,
               );
 
-              if (personLabels) {
-                const incoming = normalizeLabelStats(
-                  personLabels,
-                );
-
-                const current =
-                  existing.breakdowns[breakdown];
-
-                if (!current) {
-                  existing.breakdowns[breakdown] =
-                    structuredClone(incoming);
-                } else {
-                  mergeLabelStats(
-                    current,
-                    incoming,
-                  );
-                }
+              if (!personLabels) {
+                return;
               }
 
-              collaboratorTotals.set(
-                developer,
-                existing,
+              const incoming = normalizeLabelStats(
+                personLabels,
               );
+
+              const addBreakdown = (
+                username: string,
+                targetBreakdown: keyof CollaboratorEntry['breakdowns'],
+              ) => {
+                const entry: CollaboratorEntry =
+                  collaboratorTotals.get(username) ?? {
+                    username,
+                    reviewSent: 0,
+                    reviewReceived: 0,
+                    commentsSent: 0,
+                    commentsReceived: 0,
+                    total: 0,
+                    breakdowns: {},
+                  };
+
+                const current =
+                  entry.breakdowns[targetBreakdown];
+
+                if (!current) {
+                  entry.breakdowns[targetBreakdown] =
+                    structuredClone(incoming);
+                } else {
+                  mergeLabelStats(current, incoming);
+                }
+
+                collaboratorTotals.set(username, entry);
+              };
+
+              if (
+                breakdown === 'reviewSent' ||
+                breakdown === 'commentsSent'
+              ) {
+                addBreakdown(developer, breakdown);
+                addBreakdown(
+                  person.username,
+                  breakdown === 'reviewSent'
+                    ? 'reviewReceived'
+                    : 'commentsReceived',
+                );
+              } else {
+                addBreakdown(
+                  developer,
+                  breakdown,
+                );
+                addBreakdown(
+                  person.username,
+                  breakdown === 'reviewReceived'
+                    ? 'reviewSent'
+                    : 'commentsSent',
+                );
+              }
             });
           },
         );
