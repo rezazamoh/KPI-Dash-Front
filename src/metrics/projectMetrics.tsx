@@ -1,4 +1,4 @@
-import { Link } from '@mui/material';
+import { Chip, Link, Stack } from '@mui/material';
 import type {
   ProjectDeveloperMetrics,
 } from '@/types/projects';
@@ -37,21 +37,23 @@ const leadTimeDef = (
   key: string,
   label: string,
   field: 'min' | 'max',
-): MetricDefinition<ProjectMetric, LeadTimeValue | null> => ({
+): MetricDefinition<ProjectMetric> => ({
   key,
   label,
   detail: true,
   value: (metrics) => metrics.lead_time?.[field] ?? null,
   render: (_, value) => {
-    if (!value) {
+    const leadTime = value as LeadTimeValue | null;
+
+    if (!leadTime) {
       return '—' as DisplayValue;
     }
 
-    const text = formatDuration(value.duration);
+    const text = formatDuration(leadTime.duration);
 
-    return value.url ? (
+    return leadTime.url ? (
       <Link
-        href={value.url}
+        href={leadTime.url}
         target="_blank"
         rel="noopener noreferrer"
         underline="hover"
@@ -68,21 +70,23 @@ const gapTimeDef = (
   key: string,
   label: string,
   field: 'min' | 'max',
-): MetricDefinition<ProjectMetric, LeadTimeValue | null> => ({
+): MetricDefinition<ProjectMetric> => ({
   key,
   label,
   detail: true,
   value: (metrics) => metrics.patchset_gap_time?.[field] ?? null,
   render: (_, value) => {
-    if (!value) {
+    const gapTime = value as LeadTimeValue | null;
+
+    if (!gapTime) {
       return '—' as DisplayValue;
     }
 
-    const text = formatDuration(value.duration);
+    const text = formatDuration(gapTime.duration);
 
-    return value.url ? (
+    return gapTime.url ? (
       <Link
-        href={value.url}
+        href={gapTime.url}
         target="_blank"
         rel="noopener noreferrer"
         underline="hover"
@@ -97,6 +101,12 @@ const gapTimeDef = (
 
 const formatDurationDef = (value: unknown): string =>
   typeof value === 'number' ? formatDuration(value) : '—';
+
+interface FailureLabelStats {
+  failed: number;
+  total: number;
+  failure_rate: number;
+}
 
 /**
  * Single registry for per-developer metrics inside a project/team period.
@@ -148,23 +158,8 @@ export const projectMetricDefs: readonly MetricDefinition<ProjectMetric>[] = [
     },
   },
   {
-    key: 'failureRateRaw',
-    label: 'Failure rate',
-    snapshot: true,
-    value: (metrics) =>
-      metrics.build_failure_rate?.overall_failure_rate ?? null,
-    format: (value) => formatPercent(value as number, 1),
-    comparison: {
-      label: 'Failure rate (%)',
-      color: '#f44336',
-      chart: true,
-      format: (value) => formatPercent(value as number | null, 1),
-      aggregate: (_, values) => meanDefined(values as number[]),
-    },
-  },
-  {
     key: 'leadTime',
-    label: 'Lead time',
+    label: 'Lead time (avg)',
     snapshot: true,
     value: (metrics) => metrics.lead_time?.mean ?? null,
     format: formatDurationDef,
@@ -178,7 +173,7 @@ export const projectMetricDefs: readonly MetricDefinition<ProjectMetric>[] = [
   },
   {
     key: 'patchsetGapTime',
-    label: 'Patchset gap time',
+    label: 'Patchset gap time (avg)',
     snapshot: true,
     value: (metrics) => metrics.patchset_gap_time?.mean ?? null,
     format: formatDurationDef,
@@ -273,34 +268,52 @@ export const projectMetricDefs: readonly MetricDefinition<ProjectMetric>[] = [
 ];
 
 export const projectMetricDetailDefs: readonly MetricDefinition<ProjectMetric>[] = [
-  {
-    key: 'changesFailureRate',
-    label: 'Changes failure rate',
+    {
+    key: 'changesFailureSummary',
+    label: 'Changes with failures',
     detail: true,
-    value: (metrics) =>
-      metrics.build_failure_rate?.changes_failure_rate ?? null,
-    format: (value) => formatPercent(value as number, 1),
+    value: (metrics) => ({
+      count: metrics.build_failure_rate?.changes_with_failures ?? 0,
+      rate: metrics.build_failure_rate?.changes_failure_rate ?? null,
+    } satisfies ChangesFailureSummary),
+    render: (_, value) => {
+      const summary = value as ChangesFailureSummary;
+
+      return `${summary.count} (${formatPercent(summary.rate, 1)})`;
+    },
   },
   {
-    key: 'changesWithFailures',
-    label: 'Changes w/ failures',
+    key: 'failureByLabel',
+    label: 'Failure by label',
     detail: true,
     value: (metrics) =>
-      metrics.build_failure_rate?.changes_with_failures ?? 0,
-  },
-  {
-    key: 'failedLabels',
-    label: 'Total Failed labels',
-    detail: true,
-    value: (metrics) =>
-      metrics.build_failure_rate?.failed_outcomes ?? 0,
-  },
-  {
-    key: 'totalLabels',
-    label: 'Total labels',
-    detail: true,
-    value: (metrics) =>
-      metrics.build_failure_rate?.total_outcomes ?? 0,
+      metrics.build_failure_rate?.by_label ?? {},
+    render: (_, value) => {
+      const labels = value as Record<string, FailureLabelStats>;
+
+      if (!Object.keys(labels).length) {
+        return '—';
+      }
+
+      return (
+        <Stack
+          direction="row"
+          spacing={1}
+          flexWrap="wrap"
+          useFlexGap
+          sx={{ minWidth: 260 }}
+        >
+          {Object.entries(labels).map(([label, stats]) => (
+            <Chip
+              key={label}
+              size="small"
+              variant="outlined"
+              label={`${label}: ${stats.failed}/${stats.total} (${formatPercent(stats.failure_rate, 1)})`}
+            />
+          ))}
+        </Stack>
+      );
+    },
   },
   leadTimeDef('leadTimeMin', 'Lead time (fastest)', 'min'),
   leadTimeDef('leadTimeMax', 'Lead time (slowest)', 'max'),

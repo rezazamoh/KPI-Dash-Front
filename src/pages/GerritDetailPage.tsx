@@ -4,7 +4,7 @@ import { Link as RouterLink, useLocation, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchProject, fetchProjects } from '@/api/projects';
 import { fetchDevelopers } from '@/api/developers';
-import { fetchTeamPerformance, fetchTeams } from '@/api/teams';
+import { fetchTeam, fetchTeamPerformance } from '@/api/teams';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorPanel from '@/components/ui/ErrorPanel';
 import SectionCard from '@/components/ui/SectionCard';
@@ -160,6 +160,21 @@ const buildDeveloperTimeSeries = <T extends LeadTimeStats | GapTimeStats>(
       stats: developerMetrics[name]?.[field] ?? null,
     }))
     .filter((entry) => entry.stats && entry.stats.distribution.length > 0);
+
+const combinedDeveloperMetricDefs = [
+  ...snapshotDefinitions(projectMetricDefs).filter(
+    (definition) =>
+      definition.key !== 'reviews' &&
+      definition.key !== 'comments',
+  ),
+  ...projectMetricDetailDefs.filter(
+    (definition) =>
+      definition.key !== 'leadTimeMin' &&
+      definition.key !== 'leadTimeMax' &&
+      definition.key !== 'gapTimeMin' &&
+      definition.key !== 'gapTimeMax',
+  ),
+];
 
 interface CollaboratorEntry {
   username: string;
@@ -320,6 +335,28 @@ const ProjectDetailPage: React.FC = () => {
   const [topicMenuOpen, setTopicMenuOpen] = useState(false);
   const [showRawJson, setShowRawJson] = useState(false);
 
+  const teamQuery = useQuery({
+    queryKey: ['team', name],
+    queryFn: () => fetchTeam(name),
+    enabled: isTeam && Boolean(name),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const teamDefinition = teamQuery.data;
+
+  const defaultTeamDevelopers = teamDefinition?.members ?? [];
+  const defaultTeamRepositories = teamDefinition?.projects ?? [];
+
+  const effectiveSelectedDevelopers =
+    isTeam && selectedDevelopers.length === 0
+      ? defaultTeamDevelopers
+      : selectedDevelopers;
+
+  const effectiveSelectedRepositories =
+    isTeam && selectedRepositories.length === 0
+      ? defaultTeamRepositories
+      : selectedRepositories;
+
   useEffect(() => {
     setDraftDevelopers(selectedDevelopers);
     setDraftRepositories(selectedRepositories);
@@ -350,8 +387,8 @@ const ProjectDetailPage: React.FC = () => {
     queryKey: [
       isTeam ? 'team-detail' : 'project-detail',
       name,
-      selectedDevelopers,
-      selectedRepositories,
+      effectiveSelectedDevelopers,
+      effectiveSelectedRepositories,
       selectedTopics,
       selectedStatus,
       periods,
@@ -364,12 +401,12 @@ const ProjectDetailPage: React.FC = () => {
 
       const params: Record<string, unknown> = {};
 
-      if (selectedDevelopers.length > 0) {
-        params.username = selectedDevelopers;
+      if (effectiveSelectedDevelopers.length > 0) {
+        params.username = effectiveSelectedDevelopers;
       }
 
-      if (isTeam && selectedRepositories.length > 0) {
-        params.project = selectedRepositories;
+      if (isTeam && effectiveSelectedRepositories.length > 0) {
+        params.project = effectiveSelectedRepositories;
       }
 
       if (selectedTopics.length > 0) {
@@ -392,7 +429,9 @@ const ProjectDetailPage: React.FC = () => {
 
       return fetchProject(name, params);
     },
-    enabled: Boolean(name),
+    enabled:
+      Boolean(name) &&
+      (!isTeam || teamQuery.isSuccess),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -429,33 +468,6 @@ const ProjectDetailPage: React.FC = () => {
     ? data?.team?.name ?? data?.filters?.team?.name ?? name
     : name;
 
-  const teamsQuery = useQuery({
-    queryKey: ['teams'],
-    queryFn: fetchTeams,
-    enabled: isTeam,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const teamDefinition = useMemo(
-    () =>
-      teamsQuery.data?.find(
-        (teamOption) =>
-          String(teamOption.id) === name ||
-          teamOption.name === name,
-      ),
-    [teamsQuery.data, name],
-  );
-
-  const defaultTeamDevelopers = useMemo(
-    () => teamDefinition?.members ?? [],
-    [teamDefinition],
-  );
-
-  const defaultTeamRepositories = useMemo(
-    () => teamDefinition?.projects ?? [],
-    [teamDefinition],
-  );
-
   useEffect(() => {
     initializedTeamRepositories.current = false;
   }, [isTeam, name]);
@@ -472,6 +484,7 @@ const ProjectDetailPage: React.FC = () => {
 
     if (
       developersFromQuery.length === 0 &&
+      selectedDevelopers.length === 0 &&
       defaultTeamDevelopers.length > 0
     ) {
       setSelectedDevelopers(defaultTeamDevelopers);
@@ -480,6 +493,7 @@ const ProjectDetailPage: React.FC = () => {
 
     if (
       reposFromQuery.length === 0 &&
+      selectedRepositories.length === 0 &&
       defaultTeamRepositories.length > 0
     ) {
       setSelectedRepositories(defaultTeamRepositories);
@@ -493,10 +507,13 @@ const ProjectDetailPage: React.FC = () => {
     defaultTeamRepositories,
     reposFromQuery,
     developersFromQuery,
+    selectedDevelopers.length,
+    selectedRepositories.length,
   ]);
 
-  const developerOptions =
-    developersQuery.data?.developers?.length
+  const developerOptions = isTeam
+    ? defaultTeamDevelopers
+    : developersQuery.data?.developers?.length
       ? developersQuery.data.developers
       : (data?.developers ?? []);
 
@@ -999,8 +1016,8 @@ const ProjectDetailPage: React.FC = () => {
       activePeriods,
     };
   }, [
-    selectedDevelopers,
-    selectedRepositories,
+    effectiveSelectedDevelopers,
+    effectiveSelectedRepositories,
     selectedTopics,
     selectedStatus,
     periods,
@@ -1263,10 +1280,10 @@ const ProjectDetailPage: React.FC = () => {
             maxHeight={400}
             columns={[
               { key: 'username', label: 'Developer' },
-              ...metricColumns(snapshotDefinitions(projectMetricDefs)),
+              ...metricColumns(combinedDeveloperMetricDefs),
             ]}
             rows={projectMetrics.developerRows.map(
-              ({ username, metrics, ...row }) => ({
+              ({ username, metrics }) => ({
                 username: (
                   <Link
                     component={RouterLink}
@@ -1276,32 +1293,14 @@ const ProjectDetailPage: React.FC = () => {
                     {username}
                   </Link>
                 ),
-                ...row,
+                ...buildMetricRow(
+                  metrics,
+                  combinedDeveloperMetricDefs,
+                ),
               }),
             )}
           />
         </SectionCard>
-
-        {projectMetrics.developerRows.length > 0 && (
-          <SectionCard title="Detailed developer metrics">
-            <MetricsTable
-              maxHeight={400}
-              columns={[
-                { key: 'username', label: 'Developer' },
-                ...metricColumns(projectMetricDetailDefs),
-              ]}
-              rows={projectMetrics.developerRows.map(
-                ({ username, metrics }) => ({
-                  username,
-                  ...buildMetricRow(
-                    metrics,
-                    projectMetricDetailDefs,
-                  ),
-                }),
-              )}
-            />
-          </SectionCard>
-        )}
       <SectionCard title="Time related metrics distribution">
         <Stack spacing={2} sx={{ mb: 2 }}>
           <Stack

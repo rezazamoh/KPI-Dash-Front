@@ -25,6 +25,16 @@ export const fetchTeams = async (): Promise<Team[]> => {
   return response.data;
 };
 
+export const fetchTeam = async (
+  teamId: string,
+): Promise<Team> => {
+  const response = await apiClient.get(
+    `/gerrit/teams/${encodeURIComponent(teamId)}`,
+  );
+
+  return response.data;
+};
+
 export const createTeam = async (
   data: CreateTeamRequest,
 ): Promise<Team> => {
