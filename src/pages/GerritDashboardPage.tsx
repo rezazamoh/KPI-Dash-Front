@@ -304,9 +304,8 @@ const GerritDashboardPage: React.FC = () => {
               value={teams.length}
             />
           </Grid>
-        </Grid>
-
-        <SectionCard title="Gerrit resources">
+          <Grid item xs={12}>
+            <SectionCard title="Gerrit resources" sx={{ width: '100%' }}>
           <Tabs
             value={tab}
             onChange={(_, value) => setTab(value)}
@@ -558,7 +557,9 @@ const GerritDashboardPage: React.FC = () => {
               </Box>
             </Stack>
           )}
-        </SectionCard>
+            </SectionCard>
+          </Grid>
+        </Grid>
       </Stack>
 
       {/* TEAM CREATE / EDIT DIALOG */}

@@ -53,9 +53,9 @@ import { developerMetrics } from '@/metrics/developerMetrics';
 import { Period } from '@/types/periods';
 
 const formatDeveloperTitle = (
-  username: string,
+  username?: string,
 ) => {
-  return username
+  return (username ?? '')
     .split('.')
     .map((part) =>
       part
@@ -388,15 +388,29 @@ const DeveloperDetailPage: React.FC = () => {
       return [];
     }
 
-    return Array.isArray(result)
-      ? result
-      : [result];
+    return Array.isArray(result) ? result : result.periods;
+  }, [detailQuery.data]);
+
+  const overallPerformance = useMemo(() => {
+    const result = detailQuery.data;
+
+    return result && !Array.isArray(result)
+      ? result.overall_performance
+      : null;
   }, [detailQuery.data]);
 
   const selectedPeriod =
-    periodResults[selectedPeriodIndex] ??
-    periodResults[0] ??
-    null;
+    selectedPeriodIndex === -1 && overallPerformance
+      ? {
+          start: null,
+          end: null,
+          metrics: {
+            overall_performance: overallPerformance,
+          },
+        }
+      : periodResults[selectedPeriodIndex] ??
+        periodResults[0] ??
+        null;
 
   const data = selectedPeriod?.metrics ?? null;
 
@@ -734,7 +748,7 @@ const DeveloperDetailPage: React.FC = () => {
   }
 
   const developerTitle =
-    formatDeveloperTitle(data.username);
+    formatDeveloperTitle(data.username ?? developerName);
 
   const reviewRequestsReceivedSummary =
     buildPeopleSummary(
@@ -880,6 +894,15 @@ const DeveloperDetailPage: React.FC = () => {
           spacing={1}
           flexWrap="wrap"
         >
+          {overallPerformance && periodResults.length > 1 && (
+            <Chip
+              clickable
+              color={selectedPeriodIndex === -1 ? 'primary' : 'default'}
+              variant={selectedPeriodIndex === -1 ? 'filled' : 'outlined'}
+              label="Overall performance"
+              onClick={() => setSelectedPeriodIndex(-1)}
+            />
+          )}
           {comparisonRows.map((row) => (
             <Chip
               key={row.index}
@@ -1287,13 +1310,20 @@ const DeveloperDetailPage: React.FC = () => {
         </Box>
         <SectionCard title="Time related metrics distribution">
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} md={4}>
+              <GapDistributionChart
+                data={metrics.patchset_distribution}
+                valueFormat="count"
+                title="Patchsets per change distribution"
+              />
+            </Grid>
+            <Grid item xs={12} md={4}>
               <GapDistributionChart
                 data={metrics.patchset_gap_time}
                 title="Patchset gap distribution"
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} md={4}>
               <GapDistributionChart
                 data={metrics.lead_time}
                 title="Lead times distribution"

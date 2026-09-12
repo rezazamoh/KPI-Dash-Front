@@ -8,3 +8,8 @@ export interface PeriodResponse<T> {
   end: string | null;
   metrics: T;
 }
+
+export interface PeriodicResponse<T, O = T> {
+  periods: PeriodResponse<T>[];
+  overall_performance: O;
+}

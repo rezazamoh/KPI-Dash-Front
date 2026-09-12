@@ -364,6 +364,10 @@ const RelationshipGraph: React.FC<
         next.add(nodeId);
       }
 
+      if (!next.size) {
+        nodes.forEach((node) => next.add(node.id));
+      }
+
       return next;
     });
   };
@@ -379,21 +383,7 @@ const RelationshipGraph: React.FC<
       return;
     }
 
-    setVisibleNodeIds((previous) => {
-      const next = new Set<string>();
-
-      nodes.forEach((node) => {
-        if (previous.has(node.id)) {
-          next.add(node.id);
-        }
-      });
-
-      if (!next.size) {
-        nodes.forEach((node) => next.add(node.id));
-      }
-
-      return next;
-    });
+    setVisibleNodeIds(new Set(nodes.map((node) => node.id)));
 
     if (
       selectedNodeId &&
@@ -411,7 +401,6 @@ const RelationshipGraph: React.FC<
   }, [
     centerNodeId,
     nodes,
-    selectedNodeId,
   ]);
 
   useEffect(() => {

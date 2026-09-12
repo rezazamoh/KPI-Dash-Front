@@ -1,4 +1,4 @@
-import { PeriodResponse } from './periods';
+import { PeriodResponse, PeriodicResponse } from './periods';
 import { DateRangeFilters, DeveloperCoreMetrics } from './metrics';
 
 export interface DeveloperListResponse {
@@ -25,4 +25,6 @@ export interface DeveloperPerformanceMetrics {
   grouped_by_topic?: Record<string, DeveloperSnapshotMetrics>;
 }
 
-export type DeveloperDetailResponse = PeriodResponse<DeveloperPerformanceMetrics>[];
+export type DeveloperDetailResponse =
+  | PeriodResponse<DeveloperPerformanceMetrics>[]
+  | PeriodicResponse<DeveloperPerformanceMetrics, DeveloperSnapshotMetrics>;

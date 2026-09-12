@@ -31,12 +31,18 @@ export interface DistributionBucket {
   max: number | null;
   count: number;
   density: number | null;
-  change_numbers?: number[];
+  change_numbers?: Array<number | {
+    change_number: number;
+    title?: string;
+  }>;
   change_patchsets?: Array<{
     change_number: number;
     patchset_number: number;
+    title?: string;
   }>;
 }
+
+export type PatchsetDistributionBucket = DistributionBucket;
 
 export interface LeadTimeStats {
   min: LeadTimeValue;
@@ -100,4 +106,5 @@ export interface DateRangeFilters {
   start_date: string | null;
   end_date: string | null;
   live: boolean | null;
+  patchset_distribution?: PatchsetDistributionBucket[];
 }

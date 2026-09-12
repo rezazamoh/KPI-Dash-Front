@@ -17,12 +17,18 @@ import {
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchSettings, updateSettings, DurationWindow } from '@/api/settings';
+import {
+  fetchSettings,
+  updateSettings,
+  DurationWindow,
+  PatchsetWindow,
+} from '@/api/settings';
 import ErrorPanel from '@/components/ui/ErrorPanel';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import SectionCard from '@/components/ui/SectionCard';
 
 const emptyWindow = (): DurationWindow => ({ min: null, max: null });
+const emptyPatchsetWindow = (): PatchsetWindow => ({ min: 0, max: null });
 
 const DURATION_UNITS = [
   { label: 'Minutes', value: 60 },
@@ -116,10 +122,39 @@ const normalizeWindows = (durationWindows: DurationWindow[]): DurationWindow[] =
     max: index === durationWindows.length - 1 ? null : window.max,
   }));
 
+const normalizePatchsetWindows = (patchsetWindows: PatchsetWindow[]): PatchsetWindow[] =>
+  patchsetWindows.map((window, index) => ({
+    min: index === 0 ? 0 : window.min,
+    max: index === patchsetWindows.length - 1 ? null : window.max,
+  }));
+
+const NumericWindowSelector: React.FC<{
+  label: string;
+  value: number | null;
+  disabled?: boolean;
+  onChange: (value: number | null) => void;
+}> = ({ label, value, disabled = false, onChange }) => (
+  <TextField
+    label={label}
+    type="number"
+    value={value ?? ''}
+    disabled={disabled}
+    onChange={(event) => {
+      const nextValue = event.target.value;
+      onChange(nextValue === '' ? null : Math.max(0, Number(nextValue)));
+    }}
+    inputProps={{ min: 0, step: 1 }}
+    size="small"
+    sx={{ flex: 1, minWidth: 120 }}
+  />
+);
+
 const SettingsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [windows, setWindows] = useState<DurationWindow[]>([]);
   const [useDurationWindows, setUseDurationWindows] = useState(true);
+  const [patchsetWindows, setPatchsetWindows] = useState<PatchsetWindow[]>([]);
+  const [usePatchsetWindows, setUsePatchsetWindows] = useState(true);
   const [saved, setSaved] = useState(false);
 
   const settingsQuery = useQuery({
@@ -131,6 +166,8 @@ const SettingsPage: React.FC = () => {
     if (settingsQuery.data) {
       setWindows(normalizeWindows(settingsQuery.data.duration_windows ?? []));
       setUseDurationWindows(settingsQuery.data.use_duration_windows);
+      setPatchsetWindows(normalizePatchsetWindows(settingsQuery.data.patchset_windows ?? []));
+      setUsePatchsetWindows(settingsQuery.data.use_patchset_windows);
     }
   }, [settingsQuery.data]);
 
@@ -140,6 +177,8 @@ const SettingsPage: React.FC = () => {
       queryClient.setQueryData(['settings'], data);
       setWindows(normalizeWindows(data.duration_windows ?? windows));
       setUseDurationWindows(data.use_duration_windows);
+      setPatchsetWindows(normalizePatchsetWindows(data.patchset_windows ?? patchsetWindows));
+      setUsePatchsetWindows(data.use_patchset_windows);
       setSaved(true);
     },
   });
@@ -174,7 +213,38 @@ const SettingsPage: React.FC = () => {
     ));
   };
 
+  const updatePatchsetWindow = (index: number, changes: Partial<PatchsetWindow>) => {
+    setSaved(false);
+    setPatchsetWindows((current) => current.map((window, windowIndex) =>
+      windowIndex === index ? { ...window, ...changes } : window,
+    ));
+  };
+
+  const addPatchsetWindow = () => {
+    setSaved(false);
+    setPatchsetWindows((current) => {
+      if (current.length === 0) {
+        return [emptyPatchsetWindow()];
+      }
+
+      const lastWindow = current[current.length - 1];
+      const nextMin = lastWindow.max ?? lastWindow.min + 1;
+      const nextWindows = [...current];
+      nextWindows[nextWindows.length - 1] = { ...lastWindow, max: nextMin };
+
+      return [...nextWindows, { min: nextMin, max: null }];
+    });
+  };
+
+  const removePatchsetWindow = (index: number) => {
+    setSaved(false);
+    setPatchsetWindows((current) => normalizePatchsetWindows(
+      current.filter((_, windowIndex) => windowIndex !== index),
+    ));
+  };
+
   const windowsForSave = normalizeWindows(windows);
+  const patchsetWindowsForSave = normalizePatchsetWindows(patchsetWindows);
 
   if (settingsQuery.isLoading) {
     return <LoadingSpinner label="Loading settings" />;
@@ -269,11 +339,95 @@ const SettingsPage: React.FC = () => {
               onClick={() => updateMutation.mutate({
                 use_duration_windows: windowsForSave.length > 0 && useDurationWindows,
                 duration_windows: windowsForSave,
+                use_patchset_windows: patchsetWindowsForSave.length > 0 && usePatchsetWindows,
+                patchset_windows: patchsetWindowsForSave,
               })}
               disabled={updateMutation.isPending}
               sx={{ alignSelf: 'flex-start' }}
             >
               {updateMutation.isPending ? 'Saving…' : 'Save settings'}
+            </Button>
+          </Stack>
+        </SectionCard>
+
+        <SectionCard title="Patchsets per change distribution windows">
+          <Stack spacing={2}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={usePatchsetWindows}
+                  onChange={(event) => {
+                    setUsePatchsetWindows(event.target.checked);
+                    setSaved(false);
+                  }}
+                />
+              }
+              label="Use custom patchset windows"
+            />
+            <Typography variant="body2" color="text.secondary">
+              Configure the patchset-count ranges used by the patchsets per change graph.
+            </Typography>
+            {patchsetWindows.length === 0 ? (
+              <Typography color="text.secondary">No custom patchset windows configured.</Typography>
+            ) : null}
+
+            {patchsetWindows.map((window, index) => {
+              const isFirst = index === 0;
+              const isLast = index === patchsetWindows.length - 1;
+
+              return (
+                <Stack
+                  key={index}
+                  direction={{ xs: 'column', sm: 'row' }}
+                  spacing={2}
+                  alignItems={{ xs: 'stretch', sm: 'center' }}
+                >
+                  <NumericWindowSelector
+                    label="Minimum patchsets"
+                    value={window.min}
+                    disabled={isFirst}
+                    onChange={(value) => updatePatchsetWindow(index, { min: value ?? 0 })}
+                  />
+                  <NumericWindowSelector
+                    label="Maximum patchsets"
+                    value={window.max}
+                    disabled={isLast}
+                    onChange={(value) => updatePatchsetWindow(index, { max: value })}
+                  />
+                  <Tooltip title="Remove patchset window">
+                    <IconButton
+                      aria-label="Remove patchset window"
+                      onClick={() => removePatchsetWindow(index)}
+                      color="error"
+                    >
+                      <DeleteOutlineIcon />
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
+              );
+            })}
+
+            <Button
+              startIcon={<AddIcon />}
+              variant="outlined"
+              onClick={addPatchsetWindow}
+              sx={{ alignSelf: 'flex-start' }}
+            >
+              Add patchset window
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={() => updateMutation.mutate({
+                use_duration_windows: windowsForSave.length > 0 && useDurationWindows,
+                duration_windows: windowsForSave,
+                use_patchset_windows: patchsetWindowsForSave.length > 0 && usePatchsetWindows,
+                patchset_windows: patchsetWindowsForSave,
+              })}
+              disabled={updateMutation.isPending}
+              sx={{ alignSelf: 'flex-start' }}
+            >
+              {updateMutation.isPending ? 'Saving…' : 'Save patchset settings'}
             </Button>
           </Stack>
         </SectionCard>

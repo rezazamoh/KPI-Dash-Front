@@ -24,9 +24,10 @@ import { normalizePeriods } from '@/utils/periods';
 import { getDefaultLiveValue } from '@/utils/livePreference';
 import { buildComparisonRows, buildMetricRow, snapshotDefinitions, metricColumns } from '@/metrics/types';
 import { projectMetricDefs, projectMetricDetailDefs } from '@/metrics/projectMetrics';
-import { GapTimeStats, LeadTimeStats } from '@/types/metrics';
+import { DistributionBucket, GapTimeStats, LeadTimeStats, PatchsetDistributionBucket } from '@/types/metrics';
 import type { DeveloperCoreMetrics } from '@/types/metrics';
 import { Period } from '@/types/periods';
+import type { ProjectPerformanceMetrics } from '@/types/projects';
 
 const statusPalette: Record<string, string> = {
   MERGED: 'success.main',
@@ -39,12 +40,20 @@ const statusPalette: Record<string, string> = {
 const DEFAULT_STATUS_FILTER = ['NEW', 'ABANDONED', 'MERGED'];
 const DEVELOPER_SERIES_COLORS = ['#4fc3f7','#81c784','#ffb74d','#ba68c8','#f06292','#a1887f','#ffd54f','#64b5f6',];
 
-const aggregateDistributionBuckets = <T extends { distribution: Array<{ min: number; max: number | null; count: number; density: number | null; change_numbers?: number[]; change_patchsets?: Array<{ change_number: number; patchset_number: number }> }> }>(
+type AggregatedDistributionBucket = Omit<
+  DistributionBucket,
+  'change_numbers' | 'change_patchsets'
+> & {
+  change_numbers: NonNullable<DistributionBucket['change_numbers']>;
+  change_patchsets: NonNullable<DistributionBucket['change_patchsets']>;
+};
+
+const aggregateDistributionBuckets = <T extends { distribution: DistributionBucket[] }>(
   statsList: T[],
 ): T['distribution'] => {
   const bucketMap = new Map<
     string,
-    { min: number; max: number | null; count: number; density: number | null; change_numbers: number[]; change_patchsets: Array<{ change_number: number; patchset_number: number }> }
+    AggregatedDistributionBucket
   >();
 
   statsList.forEach((stats) => {
@@ -56,14 +65,14 @@ const aggregateDistributionBuckets = <T extends { distribution: Array<{ min: num
         current.count += bucket.count;
         current.change_numbers = Array.from(
           new Set([
-            ...current.change_numbers,
+            ...(current.change_numbers ?? []),
             ...(bucket.change_numbers ?? []),
           ]),
         );
         current.change_patchsets = Array.from(
           new Map(
             [
-              ...current.change_patchsets,
+              ...(current.change_patchsets ?? []),
               ...(bucket.change_patchsets ?? []),
             ].map((patchset) => [
               `${patchset.change_number}:${patchset.patchset_number}`,
@@ -274,6 +283,7 @@ interface ProjectDeveloperMetrics
   review_requests_sent: ProjectPeopleStats;
   comments_received: ProjectPeopleStats;
   comments_sent: ProjectPeopleStats;
+  patchset_distribution?: PatchsetDistributionBucket[];
   file_hotspots?: Array<{
     file: string;
     change_count: number;
@@ -454,13 +464,27 @@ const ProjectDetailPage: React.FC = () => {
       return [];
     }
 
-    return Array.isArray(result) ? result : [result];
+    return Array.isArray(result) ? result : result.periods;
+  }, [detailQuery.data]);
+
+  const overallPerformance = useMemo(() => {
+    const result = detailQuery.data;
+
+    return result && !Array.isArray(result)
+      ? result.overall_performance
+      : null;
   }, [detailQuery.data]);
 
   const selectedPeriod =
-    periodResults[selectedPeriodIndex] ??
-    periodResults[0] ??
-    null;
+    selectedPeriodIndex === -1 && overallPerformance
+      ? {
+          start: null,
+          end: null,
+          metrics: overallPerformance,
+        }
+      : periodResults[selectedPeriodIndex] ??
+        periodResults[0] ??
+        null;
 
   const data = selectedPeriod?.metrics ?? null;
 
@@ -625,6 +649,18 @@ const ProjectDetailPage: React.FC = () => {
         activeTimeDistributionDevelopers,
       ),
     [developerMetrics, activeTimeDistributionDevelopers],
+  );
+
+  const selectedPatchsetDistributionSeries = useMemo(
+    () => activeTimeDistributionDevelopers
+      .map((developer, index) => ({
+        key: `patchset-${developer}`,
+        name: developer,
+        color: DEVELOPER_SERIES_COLORS[index % DEVELOPER_SERIES_COLORS.length],
+        stats: developerMetrics[developer]?.patchset_distribution ?? null,
+      }))
+      .filter((entry) => entry.stats && entry.stats.length > 0),
+    [activeTimeDistributionDevelopers, developerMetrics],
   );
 
   const selectedDeveloperTimeSeries = useMemo(
@@ -966,13 +1002,13 @@ const ProjectDetailPage: React.FC = () => {
 
   const comparisonRows = useMemo(
     () =>
-      buildComparisonRows(
+      buildComparisonRows<ProjectPerformanceMetrics, ProjectDeveloperMetrics>(
         periodResults,
         periods,
         (result) => {
-          const metrics = result?.developer_metrics;
+          const metrics = result.developer_metrics;
           return metrics
-            ? Object.values(metrics)
+            ? Object.values(metrics) as ProjectDeveloperMetrics[]
             : [];
         },
         projectMetricDefs,
@@ -1168,6 +1204,15 @@ const ProjectDetailPage: React.FC = () => {
           spacing={1}
           flexWrap="wrap"
         >
+          {overallPerformance && periodResults.length > 1 && (
+            <Chip
+              clickable
+              color={selectedPeriodIndex === -1 ? 'primary' : 'default'}
+              variant={selectedPeriodIndex === -1 ? 'filled' : 'outlined'}
+              label="Overall performance"
+              onClick={() => setSelectedPeriodIndex(-1)}
+            />
+          )}
           {comparisonRows.map((row) => (
             <Chip
               key={row.index}
@@ -1331,14 +1376,21 @@ const ProjectDetailPage: React.FC = () => {
         </Stack>
 
         <Grid container spacing={2}>
-          <Grid item xs={12} sm={6}>
+          <Grid item xs={12} md={4}>
+            <GapDistributionChart
+              series={selectedPatchsetDistributionSeries}
+              valueFormat="count"
+              title="Patchsets per change distribution"
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
             <GapDistributionChart
               data={aggregatedPatchsetGapTime}
               series={selectedPatchsetGapSeries}
               title="Patchset gap distribution"
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid item xs={12} md={4}>
             <GapDistributionChart
               data={aggregatedLeadTime}
               series={selectedDeveloperTimeSeries}
@@ -1663,9 +1715,8 @@ const ProjectDetailPage: React.FC = () => {
           <PeriodComparison
             periodResults={periodResults}
             periods={periods}
-            selectMetrics={(result) => {
-              const metrics =
-                result?.developer_metrics;
+            selectMetrics={(result: ProjectPerformanceMetrics) => {
+              const metrics = result.developer_metrics;
               return metrics
                 ? Object.values(metrics)
                 : [];
