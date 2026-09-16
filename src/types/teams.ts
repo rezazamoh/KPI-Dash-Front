@@ -1,4 +1,4 @@
-import { PeriodResponse } from './periods';
+import { PeriodResponse, PeriodicResponse } from './periods';
 
 export interface Team {
   id: number;
@@ -32,4 +32,5 @@ export interface TeamPerformanceMetrics {
 }
 
 export type TeamPerformanceResponse =
-  PeriodResponse<TeamPerformanceMetrics>[];
+  | PeriodResponse<TeamPerformanceMetrics>[]
+  | PeriodicResponse<TeamPerformanceMetrics, TeamPerformanceMetrics>;

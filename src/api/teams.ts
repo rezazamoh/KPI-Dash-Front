@@ -1,5 +1,6 @@
 import { buildQueryString, Period } from './queryParams';
 import { apiClient } from './client';
+import type { TeamPerformanceResponse } from '@/types/teams';
 
 export interface Team {
   id: number;
@@ -69,7 +70,7 @@ export const fetchTeamPerformance = async (
     periods?: Period[];
     live?: boolean;
   } = {},
-) => {
+): Promise<TeamPerformanceResponse> => {
   const queryString = buildQueryString({
     username: params.username,
     project: params.project,

@@ -31,6 +31,7 @@ import { formatDuration } from '@/utils/formatDuration';
 import {
   buildComparisonRows,
   comparisonDefinitions,
+  formatPercent,
 } from '@/metrics/types';
 import type { MetricDefinition } from '@/metrics/types';
 import type { Period, PeriodResponse } from '@/types/periods';
@@ -42,6 +43,11 @@ interface PeriodComparisonProps<T, M> {
   metrics: readonly MetricDefinition<M>[];
   description?: string;
 }
+
+const LABEL_COLORS = [
+  '#e53935', '#1e88e5', '#43a047', '#fb8c00',
+  '#8e24aa', '#00acc1', '#fdd835', '#d81b60',
+];
 
 function PeriodComparison<T, M>({
   periodResults,
@@ -88,6 +94,13 @@ function PeriodComparison<T, M>({
   );
 
   const formatChartValue = (metric: MetricDefinition<M>, value: unknown) => {
+    if (typeof value === 'number') {
+      const normalizedKey = metric.key.toLowerCase();
+      if (normalizedKey.includes('failure') || normalizedKey.includes('rate')) {
+        return formatPercent(value, 2);
+      }
+      return String(value);
+    }
     const normalizedKey = metric.key.toLowerCase();
     const looksLikeDurationMetric =
       normalizedKey.includes('lead') ||
@@ -110,15 +123,32 @@ function PeriodComparison<T, M>({
 
   const chartData = useMemo(
     () =>
-      rows.map((row) => ({
-        period: formatPeriodLabelShort(row.period, row.index),
-        ...Object.fromEntries(
-          chartMetrics.map((metric) => [
-            metric.key,
-            (row.values[metric.key] as number | null) ?? 0,
-          ]),
-        ),
-      })),
+      rows.map((row) => {
+        const entry: Record<string, unknown> = {
+          period: formatPeriodLabelShort(row.period, row.index),
+        };
+        chartMetrics.forEach((metric) => {
+          if (metric.comparison?.labelBreakdown) {
+            const val = row.values[metric.key];
+            if (val && typeof val === 'object' && !Array.isArray(val)) {
+              Object.entries(val as Record<string, unknown>).forEach(
+                ([label, v]) => {
+                  const rate = (v && typeof v === 'object' && !Array.isArray(v))
+                    ? (v as Record<string, unknown>).failure_rate ?? (v as Record<string, unknown>).failed ?? v
+                    : v;
+                  entry[label] = Number(rate) ?? 0;
+                },
+              );
+            } else {
+              entry[metric.key] = val ?? 0;
+            }
+          } else {
+            entry[metric.key] =
+              (row.values[metric.key] as number | null) ?? 0;
+          }
+        });
+        return entry;
+      }),
     [rows, chartMetrics],
   );
 
@@ -265,8 +295,13 @@ function PeriodComparison<T, M>({
                             }
                           />
                           <Tooltip formatter={(value, name) => {
+                            if (group.some((m) => m.comparison?.labelBreakdown)) {
+                              return [formatChartValue(group[0], value), String(name)];
+                            }
                             const metric = group.find(
-                              (candidate) => candidate.key === name,
+                              (candidate) =>
+                                (candidate.comparison?.label ?? candidate.label) === name ||
+                                candidate.key === name,
                             ) ?? group[0];
 
                             return [
@@ -274,14 +309,31 @@ function PeriodComparison<T, M>({
                               metric.comparison?.label ?? metric.label,
                             ];
                           }} />
-                          {group.map((metric) => (
-                            <Bar
-                              key={metric.key}
-                              dataKey={metric.key}
-                              fill={metric.comparison?.color}
-                              name={metric.comparison?.label ?? metric.label}
-                            />
-                          ))}
+                          {group.some((m) => m.comparison?.labelBreakdown)
+                            ? (() => {
+                                const bdMetric = group.find((m) => m.comparison?.labelBreakdown);
+                                const firstRow = rows[0];
+                                const val = bdMetric ? firstRow?.values[bdMetric.key] : null;
+                                const keys = (val && typeof val === 'object' && !Array.isArray(val))
+                                  ? Object.keys(val as Record<string, unknown>)
+                                  : [];
+                                return keys.map((key, idx) => (
+                                  <Bar
+                                    key={key}
+                                    dataKey={key}
+                                    fill={LABEL_COLORS[idx % LABEL_COLORS.length]}
+                                    name={key}
+                                  />
+                                ));
+                              })()
+                            : group.map((metric) => (
+                                <Bar
+                                  key={metric.key}
+                                  dataKey={metric.key}
+                                  fill={metric.comparison?.color}
+                                  name={metric.comparison?.label ?? metric.label}
+                                />
+                              ))}
                         </BarChart>
                       ) : (
                         <LineChart
@@ -315,8 +367,13 @@ function PeriodComparison<T, M>({
                             }
                           />
                           <Tooltip formatter={(value, name) => {
+                            if (group.some((m) => m.comparison?.labelBreakdown)) {
+                              return [formatChartValue(group[0], value), String(name)];
+                            }
                             const metric = group.find(
-                              (candidate) => candidate.key === name,
+                              (candidate) =>
+                                (candidate.comparison?.label ?? candidate.label) === name ||
+                                candidate.key === name,
                             ) ?? group[0];
 
                             return [
@@ -324,17 +381,37 @@ function PeriodComparison<T, M>({
                               metric.comparison?.label ?? metric.label,
                             ];
                           }} />
-                          {group.map((metric) => (
-                            <Line
-                              key={metric.key}
-                              type="monotone"
-                              dataKey={metric.key}
-                              stroke={metric.comparison?.color}
-                              name={metric.comparison?.label ?? metric.label}
-                              strokeWidth={2}
-                              dot={{ r: 3 }}
-                            />
-                          ))}
+                          {group.some((m) => m.comparison?.labelBreakdown)
+                            ? (() => {
+                                const bdMetric = group.find((m) => m.comparison?.labelBreakdown);
+                                const firstRow = rows[0];
+                                const val = bdMetric ? firstRow?.values[bdMetric.key] : null;
+                                const keys = (val && typeof val === 'object' && !Array.isArray(val))
+                                  ? Object.keys(val as Record<string, unknown>)
+                                  : [];
+                                return keys.map((key, idx) => (
+                                  <Line
+                                    key={key}
+                                    type="monotone"
+                                    dataKey={key}
+                                    stroke={LABEL_COLORS[idx % LABEL_COLORS.length]}
+                                    name={key}
+                                    strokeWidth={2}
+                                    dot={{ r: 3 }}
+                                  />
+                                ));
+                              })()
+                            : group.map((metric) => (
+                                <Line
+                                  key={metric.key}
+                                  type="monotone"
+                                  dataKey={metric.key}
+                                  stroke={metric.comparison?.color}
+                                  name={metric.comparison?.label ?? metric.label}
+                                  strokeWidth={2}
+                                  dot={{ r: 3 }}
+                                />
+                              ))}
                         </LineChart>
                       )}
                     </ResponsiveContainer>

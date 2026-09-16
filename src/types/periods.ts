@@ -6,6 +6,7 @@ export interface Period {
 export interface PeriodResponse<T> {
   start: string | null;
   end: string | null;
+  change_numbers?: Array<{ change_number: number; title?: string }>;
   metrics: T;
 }
 

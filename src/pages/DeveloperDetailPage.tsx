@@ -28,6 +28,7 @@ import SectionCard from '@/components/ui/SectionCard';
 import FilterBar from '@/components/ui/Filters/FilterBar';
 import MetricsTable from '@/components/ui/MetricsTable';
 import RelationshipGraph from '@/components/ui/RelationshipGraph';
+import ChangeListDialog from '@/components/ui/ChangeListDialog';
 import { GapDistributionChart } from '@/components/ui/GapDistributionChart';
 import RelationshipTable, {
   normalizeLabelStats,
@@ -278,6 +279,7 @@ const DeveloperDetailPage: React.FC = () => {
     setCollaborationMode,
   ] = useState<CollaborationMode>('combined');
 
+  const [showChangeList, setShowChangeList] = useState(false);
   const [
     showBuildFailureDetails,
     setShowBuildFailureDetails,
@@ -381,32 +383,40 @@ const DeveloperDetailPage: React.FC = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const periodResults = useMemo(() => {
+  const allPeriods = useMemo(() => {
     const result = detailQuery.data;
-
     if (!result) {
       return [];
     }
-
-    return Array.isArray(result) ? result : result.periods;
+    return Array.isArray(result) ? result : (result.periods ?? []);
   }, [detailQuery.data]);
 
   const overallPerformance = useMemo(() => {
-    const result = detailQuery.data;
+    if (allPeriods.length > 1) {
+      const first = allPeriods[0];
+      if (first.start === null && first.end === null) {
+        return first.metrics ?? null;
+      }
+    }
+    return null;
+  }, [allPeriods]);
 
-    return result && !Array.isArray(result)
-      ? result.overall_performance
-      : null;
-  }, [detailQuery.data]);
+  const periodResults = useMemo(() => {
+    if (allPeriods.length === 0) {
+      return [];
+    }
+    if (allPeriods.length > 1 && allPeriods[0].start === null && allPeriods[0].end === null) {
+      return allPeriods.slice(1);
+    }
+    return allPeriods;
+  }, [allPeriods]);
 
   const selectedPeriod =
     selectedPeriodIndex === -1 && overallPerformance
       ? {
           start: null,
           end: null,
-          metrics: {
-            overall_performance: overallPerformance,
-          },
+          metrics: overallPerformance,
         }
       : periodResults[selectedPeriodIndex] ??
         periodResults[0] ??
@@ -833,6 +843,14 @@ const DeveloperDetailPage: React.FC = () => {
           <Chip label={filterSummary.activeTopics} />
           <Chip label={filterSummary.activeStatus} />
           <Chip label={filterSummary.activePeriods} />
+          {(selectedPeriod as any)?.change_numbers?.length ? (
+            <Chip
+              label={`${(selectedPeriod as any).change_numbers.length} changes`}
+              clickable
+              color="primary"
+              onClick={() => setShowChangeList(true)}
+            />
+          ) : null}
         </Stack>
 
         <FilterBar
@@ -1426,6 +1444,12 @@ const DeveloperDetailPage: React.FC = () => {
           </Grid>
         </Grid>
         </SectionCard>
+        <ChangeListDialog
+          open={showChangeList}
+          onClose={() => setShowChangeList(false)}
+          items={(selectedPeriod as any)?.change_numbers ?? []}
+          title="Included changes"
+        />
         {periodResults.length > 1 && (
           <PeriodComparison
             periodResults={periodResults}

@@ -150,16 +150,29 @@ export const developerMetrics: readonly MetricDefinition<DeveloperSnapshotMetric
   },
   {
     key: 'failureRate',
-    label: 'Failure rate (%)',
+    label: 'Failure by label',
     value: (metrics) =>
-      metrics.build_failure_rate?.overall_failure_rate ?? null,
-    format: (value) => formatPercent(value as number | null, 2),
+      metrics.build_failure_rate?.by_label ?? {},
+    format: (value) => {
+      if (typeof value === 'number') return formatPercent(value as number, 2);
+      const labels = value as Record<string, unknown>;
+      return Object.keys(labels).length ? Object.keys(labels).join(', ') : '—';
+    },
     comparison: {
-      label: 'Failure rate (%)',
+      label: 'Failure by label',
       color: '#f44336',
       chart: true,
-      format: (value) =>
-        formatPercent(value as number | null, 2),
+      chartGroup: 'Build failures',
+      labelBreakdown: true,
+      format: (value) => {
+        const v = value as Record<string, unknown> | null;
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          return Object.entries(v)
+            .map(([k, val]) => `${k}: ${String((val as any)?.failed ?? val ?? '—')}`)
+            .join(' · ');
+        }
+        return formatPercent(value as number | null, 2);
+      },
     },
   },
   {

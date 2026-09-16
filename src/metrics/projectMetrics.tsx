@@ -288,6 +288,38 @@ export const projectMetricDetailDefs: readonly MetricDefinition<ProjectMetric>[]
     detail: true,
     value: (metrics) =>
       metrics.build_failure_rate?.by_label ?? {},
+    comparison: {
+      label: 'Failure by label',
+      color: '#e53935',
+      chart: true,
+      chartGroup: 'Build failures',
+      labelBreakdown: true,
+      format: (value) => {
+        if (typeof value === 'number') return formatPercent(value, 2);
+        const labels = value as Record<string, unknown>;
+        if (!labels || !Object.keys(labels).length) return '—';
+        return Object.entries(labels)
+          .map(([k, v]) => `${k}: ${String((v as any)?.failure_rate ?? v ?? '—')}`)
+          .join(' · ');
+      },
+      aggregate: (items, values) => {
+        const rates = new Map<string, number[]>();
+        values.forEach((val) => {
+          if (!val || typeof val !== 'object' || Array.isArray(val)) return;
+          Object.entries(val as Record<string, { failure_rate?: number }>).forEach(([label, stats]) => {
+            const arr = rates.get(label) ?? [];
+            arr.push(stats?.failure_rate ?? 0);
+            rates.set(label, arr);
+          });
+        });
+        const merged: Record<string, { failure_rate: number }> = {};
+        rates.forEach((arr, label) => {
+          const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+          merged[label] = { failure_rate: avg };
+        });
+        return merged;
+      },
+    },
     render: (_, value) => {
       const labels = value as Record<string, FailureLabelStats>;
 

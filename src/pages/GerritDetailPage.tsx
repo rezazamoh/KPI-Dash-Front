@@ -10,6 +10,7 @@ import ErrorPanel from '@/components/ui/ErrorPanel';
 import SectionCard from '@/components/ui/SectionCard';
 import FilterBar from '@/components/ui/Filters/FilterBar';
 import ChartCard from '@/components/ui/ChartCard';
+import ChangeListDialog from '@/components/ui/ChangeListDialog';
 import { GapDistributionChart } from '@/components/ui/GapDistributionChart';
 import RelationshipGraph from '@/components/ui/RelationshipGraph';
 import { mergeLabelStats, normalizeLabelStats } from '@/components/ui/RelationshipTable';
@@ -343,6 +344,7 @@ const ProjectDetailPage: React.FC = () => {
   const [draftStatus, setDraftStatus] = useState<string[]>(DEFAULT_STATUS_FILTER);
   const [draftLive, setDraftLive] = useState(getDefaultLiveValue);
   const [topicMenuOpen, setTopicMenuOpen] = useState(false);
+  const [showChangeList, setShowChangeList] = useState(false);
   const [showRawJson, setShowRawJson] = useState(false);
 
   const teamQuery = useQuery({
@@ -457,23 +459,34 @@ const ProjectDetailPage: React.FC = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const periodResults = useMemo(() => {
+  const allPeriods = useMemo(() => {
     const result = detailQuery.data;
-
     if (!result) {
       return [];
     }
-
-    return Array.isArray(result) ? result : result.periods;
+    return Array.isArray(result) ? result : (result.periods ?? []);
   }, [detailQuery.data]);
 
   const overallPerformance = useMemo(() => {
-    const result = detailQuery.data;
+    if (allPeriods.length > 1) {
+      const first = allPeriods[0];
+      if (first.start === null && first.end === null) {
+        return first.metrics ?? null;
+      }
+    }
+    return null;
+  }, [allPeriods]);
 
-    return result && !Array.isArray(result)
-      ? result.overall_performance
-      : null;
-  }, [detailQuery.data]);
+  const periodResults = useMemo(() => {
+    if (allPeriods.length === 0) {
+      return [];
+    }
+    // First item is overall performance when >1 period and stamps null
+    if (allPeriods.length > 1 && allPeriods[0].start === null && allPeriods[0].end === null) {
+      return allPeriods.slice(1);
+    }
+    return allPeriods;
+  }, [allPeriods]);
 
   const selectedPeriod =
     selectedPeriodIndex === -1 && overallPerformance
@@ -489,7 +502,7 @@ const ProjectDetailPage: React.FC = () => {
   const data = selectedPeriod?.metrics ?? null;
 
   const displayName = isTeam
-    ? data?.team?.name ?? data?.filters?.team?.name ?? name
+    ? teamDefinition?.name ?? data?.filters?.team?.name ?? name
     : name;
 
   useEffect(() => {
@@ -1240,6 +1253,21 @@ const ProjectDetailPage: React.FC = () => {
           ))}
         </Stack>
         <SectionCard title="Project status overview">
+          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Total changes: {projectMetrics.totalChanges}
+            </Typography>
+            {(selectedPeriod as any)?.change_numbers?.length ? (
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => setShowChangeList(true)}
+                sx={{ textTransform: 'none' }}
+              >
+                Show included changes ({(selectedPeriod as any).change_numbers.length})
+              </Button>
+            ) : null}
+          </Stack>
           {projectMetrics.topStatuses.length > 0 ? (
             <Grid container spacing={2}>
               {projectMetrics.topStatuses.map(
@@ -1721,7 +1749,7 @@ const ProjectDetailPage: React.FC = () => {
                 ? Object.values(metrics)
                 : [];
             }}
-            metrics={projectMetricDefs}
+            metrics={[...projectMetricDefs, ...projectMetricDetailDefs].filter((d) => d.comparison)}
           />
         )}
         <Grid
@@ -1743,6 +1771,12 @@ const ProjectDetailPage: React.FC = () => {
                 : 'Show raw response'}
             </Button>
 
+            <ChangeListDialog
+              open={showChangeList}
+              onClose={() => setShowChangeList(false)}
+              items={(selectedPeriod as any)?.change_numbers ?? []}
+              title="Included changes"
+            />
             <Collapse in={showRawJson}>
               <Paper
                 sx={{
