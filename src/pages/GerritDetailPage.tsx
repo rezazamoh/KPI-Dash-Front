@@ -477,6 +477,16 @@ const ProjectDetailPage: React.FC = () => {
     return null;
   }, [allPeriods]);
 
+  const overallPeriod = useMemo(() => {
+    if (allPeriods.length > 1) {
+      const first = allPeriods[0];
+      if (first.start === null && first.end === null) {
+        return first;
+      }
+    }
+    return null;
+  }, [allPeriods]);
+
   const periodResults = useMemo(() => {
     if (allPeriods.length === 0) {
       return [];
@@ -489,15 +499,13 @@ const ProjectDetailPage: React.FC = () => {
   }, [allPeriods]);
 
   const selectedPeriod =
-    selectedPeriodIndex === -1 && overallPerformance
-      ? {
-          start: null,
-          end: null,
-          metrics: overallPerformance,
-        }
+    selectedPeriodIndex === -1 && overallPeriod
+      ? overallPeriod
       : periodResults[selectedPeriodIndex] ??
         periodResults[0] ??
         null;
+
+  const selectedChangeNumbers = (selectedPeriod as any)?.change_numbers ?? [];
 
   const data = selectedPeriod?.metrics ?? null;
 
@@ -1257,14 +1265,19 @@ const ProjectDetailPage: React.FC = () => {
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
               Total changes: {projectMetrics.totalChanges}
             </Typography>
-            {(selectedPeriod as any)?.change_numbers?.length ? (
+            {selectedChangeNumbers.length > 0 ? (
               <Button
                 size="small"
-                variant="outlined"
+                variant="text"
                 onClick={() => setShowChangeList(true)}
-                sx={{ textTransform: 'none' }}
+                sx={{
+                  textTransform: 'none',
+                  minWidth: 0,
+                  px: 0.5,
+                  '&:hover': { backgroundColor: 'transparent' },
+                }}
               >
-                Show included changes ({(selectedPeriod as any).change_numbers.length})
+                Show included changes ({selectedChangeNumbers.length})
               </Button>
             ) : null}
           </Stack>
@@ -1774,7 +1787,7 @@ const ProjectDetailPage: React.FC = () => {
             <ChangeListDialog
               open={showChangeList}
               onClose={() => setShowChangeList(false)}
-              items={(selectedPeriod as any)?.change_numbers ?? []}
+              items={selectedChangeNumbers}
               title="Included changes"
             />
             <Collapse in={showRawJson}>

@@ -401,6 +401,16 @@ const DeveloperDetailPage: React.FC = () => {
     return null;
   }, [allPeriods]);
 
+  const overallPeriod = useMemo(() => {
+    if (allPeriods.length > 1) {
+      const first = allPeriods[0];
+      if (first.start === null && first.end === null) {
+        return first;
+      }
+    }
+    return null;
+  }, [allPeriods]);
+
   const periodResults = useMemo(() => {
     if (allPeriods.length === 0) {
       return [];
@@ -412,12 +422,8 @@ const DeveloperDetailPage: React.FC = () => {
   }, [allPeriods]);
 
   const selectedPeriod =
-    selectedPeriodIndex === -1 && overallPerformance
-      ? {
-          start: null,
-          end: null,
-          metrics: overallPerformance,
-        }
+    selectedPeriodIndex === -1 && overallPeriod
+      ? overallPeriod
       : periodResults[selectedPeriodIndex] ??
         periodResults[0] ??
         null;
@@ -778,6 +784,7 @@ const DeveloperDetailPage: React.FC = () => {
     hasAnyCollaboration;
 
   const developerCards = cardDefinitions(developerMetrics);
+  const selectedChangeNumbers = (selectedPeriod as any)?.change_numbers ?? [];
 
   const handleApplyFilters = () => {
     setSelectedRepositories([
@@ -843,14 +850,7 @@ const DeveloperDetailPage: React.FC = () => {
           <Chip label={filterSummary.activeTopics} />
           <Chip label={filterSummary.activeStatus} />
           <Chip label={filterSummary.activePeriods} />
-          {(selectedPeriod as any)?.change_numbers?.length ? (
-            <Chip
-              label={`${(selectedPeriod as any).change_numbers.length} changes`}
-              clickable
-              color="primary"
-              onClick={() => setShowChangeList(true)}
-            />
-          ) : null}
+
         </Stack>
 
         <FilterBar
@@ -955,26 +955,56 @@ const DeveloperDetailPage: React.FC = () => {
             gap: 3,
           }}
         >
-          {developerCards.map((def) => (
-            <Box
-              key={def.key}
-              sx={{
-                flex: '1 1 180px',
-                minWidth: 180,
-              }}
-            >
-              <MetricCard
-                title={def.label}
-                value={String(
-                  def.format?.(def.value(metrics)) ??
-                    def.value(metrics) ??
-                    '',
-                )}
-                subtitle={def.card?.subtitle?.(metrics)}
-                accent={def.card?.accent}
-              />
-            </Box>
-          ))}
+          {developerCards.map((def) => {
+            const value = def.value(metrics);
+            const subtitle = def.card?.subtitle?.(metrics);
+            const title =
+              def.key === 'changes' && selectedChangeNumbers.length > 0 ? (
+                <Button
+                  size="small"
+                  variant="text"
+                  onClick={() => setShowChangeList(true)}
+                  sx={{
+                    textTransform: 'none',
+                    justifyContent: 'flex-start',
+                    minWidth: 0,
+                    px: 0,
+                    color: 'text.secondary',
+                    fontWeight: 600,
+                    fontSize: '0.75rem',
+                    lineHeight: 1.4,
+                    '&:hover': { backgroundColor: 'transparent' },
+                  }}
+                >
+                  {def.label}
+                </Button>
+              ) : (
+                def.label
+              );
+
+            return (
+              <Box
+                key={def.key}
+                sx={{
+                  flex: '1 1 180px',
+                  minWidth: 180,
+                }}
+              >
+                <MetricCard
+                  title={title}
+                  value={String(
+                    def.format?.(value) ?? value ?? '',
+                  )}
+                  subtitle={
+                    def.key === 'changes'
+                      ? subtitle ?? null
+                      : subtitle
+                  }
+                  accent={def.card?.accent}
+                />
+              </Box>
+            );
+          })}
         </Box>
 
         <Box
@@ -1447,7 +1477,7 @@ const DeveloperDetailPage: React.FC = () => {
         <ChangeListDialog
           open={showChangeList}
           onClose={() => setShowChangeList(false)}
-          items={(selectedPeriod as any)?.change_numbers ?? []}
+          items={selectedChangeNumbers}
           title="Included changes"
         />
         {periodResults.length > 1 && (

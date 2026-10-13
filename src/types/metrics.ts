@@ -90,6 +90,7 @@ export interface PeopleStats {
  */
 export interface DeveloperCoreMetrics {
   change_count: number;
+  changes_reviewed?: number;
   changes_by_status_per_repo: Record<string, Record<string, number>>;
   average_patchsets: number;
   review_requests_received: PeopleStats;

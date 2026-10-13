@@ -99,10 +99,16 @@ export const developerMetrics: readonly MetricDefinition<DeveloperSnapshotMetric
     format: (value) =>
       value != null ? formatDuration(value) : '—',
     card: {
-      subtitle: (metrics) =>
-        metrics.reviewer_response_time
-          ? 'Avg reviewer response time'
-          : 'No data available',
+      subtitle: (metrics) => {
+        if (metrics.reviewer_response_time) {
+          const reviewed = metrics.changes_reviewed ?? 0;
+          return reviewed > 0
+            ? `${reviewed} change${reviewed === 1 ? '' : 's'} reviewed`
+            : 'Avg reviewer response time';
+        }
+
+        return 'No data available';
+      },
       accent: 'success.main',
     },
     comparison: {

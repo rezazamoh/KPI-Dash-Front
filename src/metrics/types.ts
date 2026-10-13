@@ -35,7 +35,7 @@ export interface MetricDefinition<M, V = unknown> {
   format?: (value: V) => DisplayValue;
   render?: (metrics: M, value: V) => DisplayValue;
   card?: {
-    subtitle?: (metrics: M) => string | undefined;
+    subtitle?: (metrics: M) => ReactNode | undefined;
     accent?: string;
   };
   snapshot?: boolean;
