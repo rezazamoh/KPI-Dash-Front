@@ -85,24 +85,24 @@ The production build is written to `dist/`. The provided Dockerfile serves it wi
 
 ## Some sections of the application:
 
-![mainpage](.\pics\mainpage.jpeg)
+![mainpage](pics\mainpage.jpeg)
 
-![project_performance_page](.\pics\project_performance_page.jpeg)
+![project_performance_page](pics\project_performance_page.jpeg)
 
-![reviews](.\pics\reviews.jpeg)
+![reviews](pics\reviews.jpeg)
 
-![creating_teams](.\pics\creating_teams.jpeg)
+![creating_teams](pics\creating_teams.jpeg)
 
-![developer_performance_page](.\pics\developer_performance_page.jpeg)
+![developer_performance_page](pics\developer_performance_page.jpeg)
 
-![example of passing time period to the page](.\pics\example of passing time period to the page.png)
+![example of passing time period to the page](pics\example of passing time period to the page.png)
 
-![example_of_invalid_configuration_on_time_windows_settings](.\pics\example_of_invalid_configuration_on_time_windows_settings.jpeg)
+![example_of_invalid_configuration_on_time_windows_settings](pics\example_of_invalid_configuration_on_time_windows_settings.jpeg)
 
-![example_of_valid_configuration_on_time_windows_settings](.\pics\example_of_valid_configuration_on_time_windows_settings.jpeg)
+![example_of_valid_configuration_on_time_windows_settings](pics\example_of_valid_configuration_on_time_windows_settings.jpeg)
 
-![file_hotspot example](.\pics\file_hotspot example.jpeg)
+![file_hotspot example](pics\file_hotspot example.jpeg)
 
-![jira_analyzing_page](.\pics\jira_analyzing_page.jpeg)
+![jira_analyzing_page](pics\jira_analyzing_page.jpeg)
 
-![jira_board_and_project_search](.\pics\jira_board_and_project_search.jpeg)
+![jira_board_and_project_search](pics\jira_board_and_project_search.jpeg)
